@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <linearGradient id="glow" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#00f0ff;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#ff00aa;stop-opacity:1" />
+    </linearGradient>
+    <filter id="blur">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2" />
+    </filter>
+  </defs>
+  
+  <!-- Outer glow -->
+  <circle cx="50" cy="50" r="45" fill="none" stroke="url(#glow)" stroke-width="2" filter="url(#blur)" opacity="0.5"/>
+  
+  <!-- Main circle -->
+  <circle cx="50" cy="50" r="40" fill="#0a0e17" stroke="url(#glow)" stroke-width="2"/>
+  
+  <!-- Inner design - stylized G -->
+  <path d="M 60 35 
+           A 20 20 0 1 0 60 65 
+           L 60 50 
+           L 50 50" 
+        fill="none" 
+        stroke="url(#glow)" 
+        stroke-width="4" 
+        stroke-linecap="round"
+        stroke-linejoin="round"/>
+  
+  <!-- Center dot -->
+  <circle cx="50" cy="50" r="4" fill="#00f0ff"/>
+</svg>
+
