@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSettingsStore } from '../stores/settingsStore'
-import { X, Volume2, Bot, Sparkles, Play, Loader2, Square, AlertCircle } from 'lucide-react'
+import { X, Volume2, Bot, Sparkles, Play, Loader2, Square, AlertCircle, Mic } from 'lucide-react'
 
 interface SettingsProps {
   websocket: {
@@ -392,6 +392,43 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               Conversational
             </button>
           </div>
+        </section>
+
+        {/* Microphone Mode */}
+        <section>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
+            <Mic className="w-4 h-4 text-green-400" />
+            Microphone Mode
+          </h3>
+          
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleSettingChange('activation_mode', 'push-to-talk')}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all
+                ${settings.activation_mode === 'push-to-talk'
+                  ? 'bg-green-500/20 border-green-500 text-green-400'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              Push to Talk
+            </button>
+            <button
+              onClick={() => handleSettingChange('activation_mode', 'vad')}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all
+                ${settings.activation_mode === 'vad'
+                  ? 'bg-green-500/20 border-green-500 text-green-400'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              Open Mic
+            </button>
+          </div>
+          
+          <p className="text-xs text-slate-500 mt-2">
+            {settings.activation_mode === 'vad' 
+              ? 'Always listening - speak anytime and Gala will respond when you pause'
+              : 'Click the mic button to start/stop recording'}
+          </p>
         </section>
 
         {/* Transcript Toggle */}

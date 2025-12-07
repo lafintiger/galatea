@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 interface AudioVisualizerProps {
   isActive: boolean
   level: number
-  mode: 'idle' | 'recording' | 'playing'
+  mode: 'idle' | 'recording' | 'playing' | 'listening'
 }
 
 export function AudioVisualizer({ isActive, level, mode }: AudioVisualizerProps) {
@@ -60,7 +60,11 @@ export function AudioVisualizer({ isActive, level, mode }: AudioVisualizerProps)
         let gradient: CanvasGradient
         if (mode === 'recording') {
           gradient = ctx.createLinearGradient(x, y + barHeight, x, y)
-          gradient.addColorStop(0, '#22c55e')
+          gradient.addColorStop(0, '#eab308')  // Yellow for active recording
+          gradient.addColorStop(1, '#facc15')
+        } else if (mode === 'listening') {
+          gradient = ctx.createLinearGradient(x, y + barHeight, x, y)
+          gradient.addColorStop(0, '#22c55e')  // Green for listening/ready
           gradient.addColorStop(1, '#4ade80')
         } else if (mode === 'playing') {
           gradient = ctx.createLinearGradient(x, y + barHeight, x, y)
@@ -80,7 +84,7 @@ export function AudioVisualizer({ isActive, level, mode }: AudioVisualizerProps)
 
         // Add glow effect when active
         if (isActive) {
-          ctx.shadowColor = mode === 'recording' ? '#22c55e' : '#00f0ff'
+          ctx.shadowColor = mode === 'recording' ? '#eab308' : mode === 'listening' ? '#22c55e' : '#00f0ff'
           ctx.shadowBlur = 10
           ctx.fill()
           ctx.shadowBlur = 0
@@ -111,7 +115,8 @@ export function AudioVisualizer({ isActive, level, mode }: AudioVisualizerProps)
       <div className={`
         absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2
         w-16 h-16 rounded-full
-        ${mode === 'recording' ? 'bg-green-500/20 border-green-500' : 
+        ${mode === 'recording' ? 'bg-yellow-500/20 border-yellow-500' : 
+          mode === 'listening' ? 'bg-green-500/20 border-green-500' :
           mode === 'playing' ? 'bg-cyber-accent/20 border-cyber-accent' : 
           'bg-slate-700/20 border-slate-600'}
         border-2 transition-all duration-300
@@ -119,7 +124,8 @@ export function AudioVisualizer({ isActive, level, mode }: AudioVisualizerProps)
       `}>
         <div className={`
           absolute inset-2 rounded-full
-          ${mode === 'recording' ? 'bg-green-500/30' : 
+          ${mode === 'recording' ? 'bg-yellow-500/30' : 
+            mode === 'listening' ? 'bg-green-500/30' :
             mode === 'playing' ? 'bg-cyber-accent/30' : 
             'bg-slate-600/30'}
           ${isActive ? 'animate-pulse' : ''}

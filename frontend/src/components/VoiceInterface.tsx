@@ -1,9 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { AudioVisualizer } from './AudioVisualizer'
-import { Mic, MicOff, Square, Send, AlertCircle } from 'lucide-react'
+import { Mic, MicOff, Square, Send, AlertCircle, Radio } from 'lucide-react'
 
 interface VoiceInterfaceProps {
   websocket: {
@@ -16,9 +16,48 @@ interface VoiceInterfaceProps {
 export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
   const { conversationState, currentResponse } = useConversationStore()
   const { settings } = useSettingsStore()
-  const { isRecording, startRecording, stopRecording, audioLevel } = useAudioRecorder()
+  const { isRecording, isListening, startRecording, stopRecording, startVAD, stopVAD, audioLevel } = useAudioRecorder()
   const [textInput, setTextInput] = useState('')
   const [micError, setMicError] = useState<string | null>(null)
+
+  // Handle VAD mode changes
+  useEffect(() => {
+    if (settings.activation_mode === 'vad') {
+      // Start VAD when in open mic mode and not already listening
+      if (!isListening && conversationState === 'idle') {
+        startVAD((audioBlob) => {
+          console.log('🎤 VAD: Speech ended, sending audio')
+          websocket.sendAudio(audioBlob)
+        }).catch((error) => {
+          console.error('VAD start error:', error)
+          if (error instanceof DOMException && error.name === 'NotAllowedError') {
+            setMicError('🎤 Microphone access denied. Please allow microphone permission.')
+          }
+        })
+      }
+    } else {
+      // Stop VAD when switching to push-to-talk
+      if (isListening) {
+        stopVAD()
+      }
+    }
+  }, [settings.activation_mode, conversationState, isListening, startVAD, stopVAD, websocket])
+
+  // Stop VAD when Gala is speaking
+  useEffect(() => {
+    if (settings.activation_mode === 'vad' && conversationState === 'speaking') {
+      stopVAD()
+    } else if (settings.activation_mode === 'vad' && conversationState === 'idle' && !isListening) {
+      // Restart VAD after Gala finishes speaking
+      const timer = setTimeout(() => {
+        startVAD((audioBlob) => {
+          console.log('🎤 VAD: Speech ended, sending audio')
+          websocket.sendAudio(audioBlob)
+        }).catch(console.error)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [conversationState, settings.activation_mode, isListening, startVAD, stopVAD, websocket])
 
   const handlePushToTalk = useCallback(async () => {
     setMicError(null)
@@ -48,6 +87,28 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
     }
   }, [isRecording, startRecording, stopRecording, websocket])
 
+  const toggleVAD = useCallback(async () => {
+    setMicError(null)
+    
+    if (isListening) {
+      stopVAD()
+    } else {
+      try {
+        await startVAD((audioBlob) => {
+          console.log('🎤 VAD: Speech ended, sending audio')
+          websocket.sendAudio(audioBlob)
+        })
+      } catch (error) {
+        console.error('VAD error:', error)
+        if (error instanceof DOMException && error.name === 'NotAllowedError') {
+          setMicError('🎤 Microphone access denied. Please allow microphone permission.')
+        } else {
+          setMicError('🎤 Failed to access microphone.')
+        }
+      }
+    }
+  }, [isListening, startVAD, stopVAD, websocket])
+
   const handleInterrupt = useCallback(() => {
     websocket.interrupt()
   }, [websocket])
@@ -63,6 +124,12 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
   }, [textInput, websocket])
 
   const getStatusText = () => {
+    if (settings.activation_mode === 'vad' && isListening && !isRecording) {
+      return '🎤 Open mic - speak anytime...'
+    }
+    if (settings.activation_mode === 'vad' && isRecording) {
+      return '🎤 Listening to you...'
+    }
     switch (conversationState) {
       case 'listening':
         return 'Listening...'
@@ -73,6 +140,9 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
       case 'speaking':
         return `${settings.assistant_nickname} is speaking...`
       default:
+        if (settings.activation_mode === 'vad') {
+          return isListening ? '🎤 Open mic active' : `Ready to chat with ${settings.assistant_nickname}`
+        }
         return `Ready to chat with ${settings.assistant_nickname}`
     }
   }
@@ -104,9 +174,9 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
       {/* Audio Visualizer */}
       <div className="w-full h-32 flex items-center justify-center">
         <AudioVisualizer 
-          isActive={isRecording || conversationState === 'speaking'} 
+          isActive={isRecording || isListening || conversationState === 'speaking'} 
           level={audioLevel}
-          mode={isRecording ? 'recording' : conversationState === 'speaking' ? 'playing' : 'idle'}
+          mode={isRecording ? 'recording' : isListening ? 'listening' : conversationState === 'speaking' ? 'playing' : 'idle'}
         />
       </div>
 
@@ -120,7 +190,7 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
 
       {/* Voice Control */}
       <div className="flex items-center gap-4">
-        {/* Main Voice Button */}
+        {/* Push-to-Talk Button */}
         {settings.activation_mode === 'push-to-talk' && (
           <button
             onClick={handlePushToTalk}
@@ -143,6 +213,44 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
               <>
                 <span className="absolute inset-0 rounded-full border border-green-500/50 pulse-ring" />
                 <span className="absolute inset-0 rounded-full border border-green-500/30 pulse-ring" 
+                      style={{ animationDelay: '0.5s' }} />
+              </>
+            )}
+          </button>
+        )}
+
+        {/* Open Mic / VAD Button */}
+        {settings.activation_mode === 'vad' && (
+          <button
+            onClick={toggleVAD}
+            disabled={conversationState === 'processing' || conversationState === 'thinking' || conversationState === 'speaking'}
+            className={`
+              relative w-24 h-24 rounded-full cyber-btn
+              flex items-center justify-center
+              ${isListening ? 'border-green-500 bg-green-500/10' : ''}
+              ${isRecording ? 'border-yellow-500 bg-yellow-500/20' : ''}
+            `}
+          >
+            {isRecording ? (
+              <Radio className="w-10 h-10 text-yellow-400 animate-pulse" />
+            ) : isListening ? (
+              <Radio className="w-10 h-10 text-green-400" />
+            ) : (
+              <Mic className="w-10 h-10" />
+            )}
+            
+            {/* Pulse rings when listening */}
+            {isListening && !isRecording && (
+              <>
+                <span className="absolute inset-0 rounded-full border border-green-500/30 pulse-ring" />
+              </>
+            )}
+            
+            {/* Active recording indicator */}
+            {isRecording && (
+              <>
+                <span className="absolute inset-0 rounded-full border border-yellow-500/50 pulse-ring" />
+                <span className="absolute inset-0 rounded-full border border-yellow-500/30 pulse-ring" 
                       style={{ animationDelay: '0.5s' }} />
               </>
             )}
