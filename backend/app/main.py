@@ -910,23 +910,36 @@ async def generate_response(
             if state.should_interrupt:
                 break
             
-            # Track <think> blocks and filter them out
+            # Track <think> blocks - send separately for optional display
             think_buffer += chunk
             
             # Check for <think> opening tag
             if '<think>' in think_buffer.lower() or '<thinking>' in think_buffer.lower():
                 in_think_block = True
+                # Clean the tag from buffer
+                think_buffer = re.sub(r'<think(?:ing)?>', '', think_buffer, flags=re.IGNORECASE)
             
             # Check for </think> closing tag
             if '</think>' in think_buffer.lower() or '</thinking>' in think_buffer.lower():
                 in_think_block = False
-                # Clear the think buffer and skip this content
-                think_buffer = re.sub(r'</?think(?:ing)?>', '', think_buffer, flags=re.IGNORECASE)
+                # Send final thinking chunk and clear
+                think_content = re.sub(r'</think(?:ing)?>', '', think_buffer, flags=re.IGNORECASE)
+                if think_content.strip():
+                    await websocket.send_json({
+                        "type": "thinking_chunk",
+                        "text": think_content
+                    })
                 think_buffer = ""
                 continue
             
-            # If we're in a think block, don't output anything
+            # If we're in a think block, send as thinking content
             if in_think_block:
+                if think_buffer.strip() and not think_buffer.strip().startswith('<'):
+                    await websocket.send_json({
+                        "type": "thinking_chunk",
+                        "text": think_buffer
+                    })
+                    think_buffer = ""
                 continue
             
             # Clear think buffer if no tags found after reasonable length

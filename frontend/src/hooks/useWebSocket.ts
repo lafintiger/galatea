@@ -17,6 +17,10 @@ export function useWebSocket() {
     appendToCurrentResponse,
     clearCurrentResponse,
     setError,
+    setSearchQuery,
+    appendThinkingContent,
+    clearThinkingContent,
+    setStatusDetail,
   } = useConversationStore()
   
   const { setSettings, setModels, setVoices } = useSettingsStore()
@@ -95,14 +99,23 @@ export function useWebSocket() {
         if (data.settings) {
           setSettings(data.settings)
         }
+        // Clear transient states when returning to idle
+        if (data.state === 'idle') {
+          setSearchQuery(null)
+          setStatusDetail(null)
+          clearThinkingContent()
+        }
         break
 
       case 'search_start':
         console.log('🔍 Search started:', data.query)
+        setSearchQuery(data.query)
+        setStatusDetail(`Searching for: ${data.query}`)
         break
 
       case 'search_results':
         console.log('🔍 Search results:', data.data)
+        setStatusDetail(`Found ${data.data?.results?.length || 0} results`)
         // Results will be used by LLM to generate response
         break
 
@@ -120,6 +133,11 @@ export function useWebSocket() {
 
       case 'llm_chunk':
         appendToCurrentResponse(data.text)
+        break
+
+      case 'thinking_chunk':
+        // Accumulate thinking content for optional display
+        appendThinkingContent(data.text)
         break
 
       case 'llm_complete':

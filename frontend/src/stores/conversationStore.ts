@@ -19,6 +19,11 @@ interface ConversationStoreState {
   error: string | null
   currentConversationId: string | null
   
+  // Enhanced status tracking
+  searchQuery: string | null        // Current search query
+  thinkingContent: string           // Thinking model's internal thoughts
+  statusDetail: string | null       // Additional status detail text
+  
   setConnectionStatus: (status: ConnectionStatus) => void
   setConversationState: (state: ConversationState) => void
   addMessage: (message: Message) => void
@@ -31,6 +36,12 @@ interface ConversationStoreState {
   clearMessages: () => void
   setCurrentConversationId: (id: string | null) => void
   exportConversation: (format: 'markdown' | 'text' | 'json') => void
+  
+  // Enhanced status actions
+  setSearchQuery: (query: string | null) => void
+  appendThinkingContent: (chunk: string) => void
+  clearThinkingContent: () => void
+  setStatusDetail: (detail: string | null) => void
 }
 
 export const useConversationStore = create<ConversationStoreState>((set) => ({
@@ -41,6 +52,11 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   currentResponse: '',
   error: null,
   currentConversationId: null,
+  
+  // Enhanced status tracking
+  searchQuery: null,
+  thinkingContent: '',
+  statusDetail: null,
   
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
   
@@ -118,6 +134,17 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
   },
+  
+  // Enhanced status actions
+  setSearchQuery: (searchQuery) => set({ searchQuery }),
+  
+  appendThinkingContent: (chunk) => set((state) => ({
+    thinkingContent: state.thinkingContent + chunk
+  })),
+  
+  clearThinkingContent: () => set({ thinkingContent: '' }),
+  
+  setStatusDetail: (statusDetail) => set({ statusDetail }),
 }))
 
 

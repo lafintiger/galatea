@@ -3,7 +3,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { AudioVisualizer } from './AudioVisualizer'
-import { Mic, MicOff, Square, Send, AlertCircle, Radio, Search, X } from 'lucide-react'
+import { Mic, MicOff, Square, Send, AlertCircle, Radio, Search, X, Brain, Eye, EyeOff } from 'lucide-react'
 
 interface VoiceInterfaceProps {
   websocket: {
@@ -15,13 +15,14 @@ interface VoiceInterfaceProps {
 }
 
 export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
-  const { conversationState, currentResponse } = useConversationStore()
+  const { conversationState, currentResponse, searchQuery, statusDetail, thinkingContent } = useConversationStore()
   const { settings } = useSettingsStore()
+  const [showThinking, setShowThinking] = useState(false)
   const { isRecording, isListening, startRecording, stopRecording, startVAD, stopVAD, audioLevel } = useAudioRecorder()
   const [textInput, setTextInput] = useState('')
   const [micError, setMicError] = useState<string | null>(null)
   const [showSearch, setShowSearch] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchDialogQuery, setSearchDialogQuery] = useState('')
 
   // Handle VAD mode changes
   useEffect(() => {
@@ -185,21 +186,28 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
     // Conversation states
     switch (conversationState) {
       case 'listening':
-        return { text: 'Listening...', icon: '👂', color: 'text-green-400', animate: true }
+        return { text: 'Listening...', icon: '👂', color: 'text-green-400', animate: true, detail: null }
       case 'processing':
-        return { text: 'Transcribing...', icon: '📝', color: 'text-amber-400', animate: true }
+        return { text: 'Transcribing...', icon: '📝', color: 'text-amber-400', animate: true, detail: null }
       case 'thinking':
-        return { text: `${settings.assistant_nickname} is thinking...`, icon: '🧠', color: 'text-purple-400', animate: true }
+        return { text: `${settings.assistant_nickname} is thinking...`, icon: '🧠', color: 'text-purple-400', animate: true, detail: statusDetail }
       case 'speaking':
-        return { text: `${settings.assistant_nickname} is speaking`, icon: '🗣️', color: 'text-cyber-accent', animate: true }
+        return { text: `${settings.assistant_nickname} is speaking`, icon: '🗣️', color: 'text-cyber-accent', animate: true, detail: null }
       case 'searching':
-        return { text: 'Searching the web...', icon: '🔍', color: 'text-blue-400', animate: true }
+        return { 
+          text: 'Searching the web...', 
+          icon: '🔍', 
+          color: 'text-blue-400', 
+          animate: true, 
+          detail: searchQuery ? `"${searchQuery}"` : statusDetail 
+        }
       default:
         return { 
           text: `Ready to chat with ${settings.assistant_nickname}`, 
           icon: '●', 
           color: 'text-slate-400',
-          animate: false 
+          animate: false,
+          detail: null
         }
     }
   }
@@ -209,14 +217,49 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
       {/* Status */}
-      <div className="flex items-center gap-3">
-        <span className={`text-xl ${statusInfo.animate ? 'animate-pulse' : ''}`}>
-          {statusInfo.icon}
-        </span>
-        <span className={`font-body text-lg ${statusInfo.color} ${statusInfo.animate ? 'animate-pulse' : ''}`}>
-          {statusInfo.text}
-        </span>
+      <div className="flex flex-col items-center gap-2">
+        <div className="flex items-center gap-3">
+          <span className={`text-2xl ${statusInfo.animate ? 'animate-pulse' : ''}`}>
+            {statusInfo.icon}
+          </span>
+          <span className={`font-body text-xl ${statusInfo.color} ${statusInfo.animate ? 'animate-pulse' : ''}`}>
+            {statusInfo.text}
+          </span>
+        </div>
+        
+        {/* Status detail (search query, etc.) */}
+        {statusInfo.detail && (
+          <div className="px-4 py-2 rounded-lg bg-cyber-light/30 border border-cyber-accent/20 max-w-md">
+            <p className="text-sm text-slate-400 font-body truncate">{statusInfo.detail}</p>
+          </div>
+        )}
+        
+        {/* Thinking toggle - only show when there's thinking content or in thinking state */}
+        {(thinkingContent || conversationState === 'thinking') && (
+          <button
+            onClick={() => setShowThinking(!showThinking)}
+            className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs
+                       bg-purple-500/10 border border-purple-500/30 text-purple-400
+                       hover:bg-purple-500/20 transition-colors"
+          >
+            <Brain className="w-3 h-3" />
+            {showThinking ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}
+            {showThinking ? 'Hide' : 'Show'} Thoughts
+          </button>
+        )}
       </div>
+      
+      {/* Thinking Content Panel */}
+      {showThinking && thinkingContent && (
+        <div className="w-full max-w-2xl p-3 rounded-lg bg-purple-500/10 border border-purple-500/30 
+                        max-h-32 overflow-y-auto">
+          <div className="flex items-center gap-2 text-purple-400 text-xs mb-2">
+            <Brain className="w-3 h-3" />
+            <span className="font-medium">{settings.assistant_nickname}'s thoughts</span>
+          </div>
+          <p className="text-sm text-purple-300/80 font-body whitespace-pre-wrap">{thinkingContent}</p>
+        </div>
+      )}
 
       {/* Audio Visualizer */}
       <div className="w-full h-32 flex items-center justify-center">
@@ -367,16 +410,16 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
             
             <form onSubmit={(e) => {
               e.preventDefault()
-              if (searchQuery.trim()) {
-                websocket.webSearch(searchQuery.trim())
+              if (searchDialogQuery.trim()) {
+                websocket.webSearch(searchDialogQuery.trim())
                 setShowSearch(false)
-                setSearchQuery('')
+                setSearchDialogQuery('')
               }
             }}>
               <input
                 type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                value={searchDialogQuery}
+                onChange={(e) => setSearchDialogQuery(e.target.value)}
                 placeholder="What do you want to search for?"
                 autoFocus
                 className="w-full px-4 py-3 rounded-lg bg-cyber-darker border border-cyber-accent/30
@@ -395,7 +438,7 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
                 </button>
                 <button
                   type="submit"
-                  disabled={!searchQuery.trim()}
+                  disabled={!searchDialogQuery.trim()}
                   className="flex-1 px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/50
                              text-blue-400 hover:bg-blue-500/30 transition-colors
                              disabled:opacity-50 flex items-center justify-center gap-2"
