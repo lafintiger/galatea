@@ -257,9 +257,10 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                          text-slate-200 text-sm focus:outline-none focus:border-cyber-accent"
             >
               {settings.tts_provider === 'kokoro' ? (
-                // Kokoro voices
+                // Kokoro voices grouped by language
                 <>
-                  <optgroup label="⭐ American Female">
+                  {/* English (US) */}
+                  <optgroup label="🇺🇸 English (US) - Female">
                     {kokoroVoices
                       .filter(v => v.id.startsWith('af_'))
                       .map((voice) => (
@@ -268,7 +269,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  <optgroup label="American Male">
+                  <optgroup label="🇺🇸 English (US) - Male">
                     {kokoroVoices
                       .filter(v => v.id.startsWith('am_'))
                       .map((voice) => (
@@ -277,7 +278,9 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  <optgroup label="British Female">
+                  
+                  {/* English (UK) */}
+                  <optgroup label="🇬🇧 English (UK) - Female">
                     {kokoroVoices
                       .filter(v => v.id.startsWith('bf_'))
                       .map((voice) => (
@@ -286,9 +289,140 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  <optgroup label="British Male">
+                  <optgroup label="🇬🇧 English (UK) - Male">
                     {kokoroVoices
                       .filter(v => v.id.startsWith('bm_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* Japanese */}
+                  <optgroup label="🇯🇵 Japanese - Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('jf_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🇯🇵 Japanese - Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('jm_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* Chinese */}
+                  <optgroup label="🇨🇳 Chinese - Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('zf_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🇨🇳 Chinese - Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('zm_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* French */}
+                  <optgroup label="🇫🇷 French">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('ff_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* Spanish */}
+                  <optgroup label="🇪🇸 Spanish - Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('ef_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🇪🇸 Spanish - Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('em_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* Italian */}
+                  <optgroup label="🇮🇹 Italian - Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('if_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🇮🇹 Italian - Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('im_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* Portuguese */}
+                  <optgroup label="🇵🇹 Portuguese - Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('pf_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🇵🇹 Portuguese - Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('pm_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  
+                  {/* Hindi */}
+                  <optgroup label="🇮🇳 Hindi - Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('hf_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="🇮🇳 Hindi - Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('hm_'))
                       .map((voice) => (
                         <option key={voice.id} value={voice.id}>
                           {voice.name}

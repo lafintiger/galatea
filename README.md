@@ -69,6 +69,18 @@ docker run -d \
   --language en
 ```
 
+**Multi-Language Support:** To enable automatic language detection (speak any language!), remove the `--language en` flag:
+```bash
+docker run -d \
+  --name wyoming-whisper \
+  --restart unless-stopped \
+  -p 10300:10300 \
+  rhasspy/wyoming-whisper \
+  --model small
+```
+
+Then select a matching voice in Gala's Settings (e.g., Japanese voice for Japanese speech).
+
 **Options:**
 - `--model` - Whisper model size: `tiny`, `base`, `small`, `medium`, `large-v3` (larger = more accurate but slower)
 - `--language` - Language code (e.g., `en`, `es`, `fr`, `de`)
