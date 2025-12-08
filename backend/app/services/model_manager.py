@@ -12,7 +12,7 @@ class ModelManager:
     def __init__(self):
         self.ollama_url = settings.ollama_base_url
         self.chat_model: Optional[str] = None
-        self.embedding_model = "ZimaBlueAI/Qwen3-Embedding-8B:Q5_K_M"  # Big model for quality (5.4GB)
+        self.embedding_model = "bge-m3"  # High quality embedding model (1.2GB, 1024 dims)
     
     async def get_loaded_models(self) -> List[dict]:
         """Get list of currently loaded models"""

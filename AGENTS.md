@@ -26,7 +26,7 @@
 - **Enhanced Status Bar** - Shows model info, TTS provider, retry button
 - **Conversation History** - Save/load past conversations with rename/delete
 - **Web Search** - Search via SearXNG or Perplexica, natural language triggers
-- **RAG System** - Background embedding with LanceDB + Ollama (Qwen3-Embedding-8B)
+- **RAG System** - Background embedding with LanceDB + Ollama (bge-m3)
 
 ---
 
@@ -373,9 +373,9 @@ User saves conversation → JSON stored immediately
 | `background_worker.py` | Idle detection + batch processing |
 
 **Configuration:**
-- **Embedding Model**: `ZimaBlueAI/Qwen3-Embedding-8B:Q5_K_M` (5.4GB, high quality)
+- **Embedding Model**: `bge-m3` (1.2GB, high quality multilingual)
 - **Idle Timeout**: 5 minutes of no activity before processing
-- **Vector Dimensions**: 4096 (Qwen3-Embedding output)
+- **Vector Dimensions**: 1024 (bge-m3 output)
 
 **API Endpoints:**
 | Method | Endpoint | Description |

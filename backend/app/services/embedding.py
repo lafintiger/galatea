@@ -25,7 +25,7 @@ class EmbeddingService:
     
     def __init__(self):
         self.ollama_url = settings.ollama_base_url
-        self.embedding_model = "ZimaBlueAI/Qwen3-Embedding-8B:Q5_K_M"  # Big model for quality (5.4GB)
+        self.embedding_model = "bge-m3"  # High quality embedding model (1.2GB, 1024 dims)
         self.db_path = settings.data_dir / "lancedb"
         self.db_path.mkdir(parents=True, exist_ok=True)
         self.db = None
@@ -48,7 +48,7 @@ class EmbeddingService:
             self.table = self.db.open_table(table_name)
         else:
             # Create table with initial schema
-            # Qwen3-Embedding-8B produces 4096-dim embeddings
+            # bge-m3 produces 1024-dim embeddings
             import pyarrow as pa
             schema = pa.schema([
                 pa.field("id", pa.string()),
@@ -56,7 +56,7 @@ class EmbeddingService:
                 pa.field("role", pa.string()),
                 pa.field("content", pa.string()),
                 pa.field("timestamp", pa.string()),
-                pa.field("vector", pa.list_(pa.float32(), 4096)),
+                pa.field("vector", pa.list_(pa.float32(), 1024)),
             ])
             self.table = self.db.create_table(table_name, schema=schema)
         
