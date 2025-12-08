@@ -38,6 +38,8 @@ class Settings(BaseSettings):
     # Web Search - Perplexica (AI-powered search)
     perplexica_host: str = "localhost"
     perplexica_port: int = 3000
+    # Perplexica provider ID for Ollama (get from Perplexica config.json)
+    perplexica_ollama_provider_id: str = "ff71bfa7-4d8d-45c2-8e70-a6232e437a5f"
     
     # Database
     database_url: str = "sqlite+aiosqlite:///./data/galatea.db"

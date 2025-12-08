@@ -27,7 +27,8 @@ class WebSearchService:
     def __init__(self):
         self.searxng_url = f"http://{settings.searxng_host}:{settings.searxng_port}"
         self.perplexica_url = f"http://{settings.perplexica_host}:{settings.perplexica_port}"
-        self.client = httpx.AsyncClient(timeout=30.0)
+        # Perplexica needs longer timeout as it does AI-powered search
+        self.client = httpx.AsyncClient(timeout=120.0)
     
     async def search_searxng(self, query: str, num_results: int = 5) -> list[SearchResult]:
         """Search using SearXNG meta-search engine
@@ -66,7 +67,7 @@ class WebSearchService:
         self, 
         query: str, 
         focus_mode: str = "webSearch",
-        optimization_mode: str = "balanced"
+        optimization_mode: str = "speed"
     ) -> dict:
         """Search using Perplexica AI-powered search
         
@@ -82,39 +83,53 @@ class WebSearchService:
             Dict with 'answer' (AI summary) and 'sources' (list of sources)
         """
         try:
+            # Perplexica API format - provider must be the UUID from config.json
+            provider_id = settings.perplexica_ollama_provider_id
+            request_body = {
+                "chatModel": {
+                    "provider": provider_id,
+                    "model": settings.default_model,
+                },
+                "embeddingModel": {
+                    "provider": provider_id,
+                    "model": "bge-m3",  # Use same embedding model as RAG
+                },
+                "optimizationMode": optimization_mode,
+                "focusMode": focus_mode,
+                "query": query,
+                "history": []  # No conversation history for fresh searches
+            }
+            
+            print(f"🔍 Perplexica request: {request_body}")
+            
             response = await self.client.post(
                 f"{self.perplexica_url}/api/search",
-                json={
-                    "chatModel": {
-                        "provider": "ollama",
-                        "model": settings.default_model,
-                    },
-                    "embeddingModel": {
-                        "provider": "ollama",
-                        "model": "nomic-embed-text",  # Common embedding model
-                    },
-                    "focusMode": focus_mode,
-                    "query": query,
-                    "optimizationMode": optimization_mode,
-                }
+                json=request_body,
+                timeout=120.0  # Perplexica needs time for AI search + Ollama
             )
             response.raise_for_status()
             data = response.json()
             
+            print(f"✅ Perplexica response keys: {data.keys()}")
+            
+            # Parse response - Perplexica returns 'message' and 'sources'
+            sources = []
+            for src in data.get("sources", []):
+                # Sources can have 'metadata' with title/url or direct fields
+                metadata = src.get("metadata", {})
+                sources.append(SearchResult(
+                    title=metadata.get("title", src.get("title", "")),
+                    url=metadata.get("url", src.get("url", "")),
+                    snippet=src.get("pageContent", src.get("content", ""))[:300],
+                    source="perplexica"
+                ).to_dict())
+            
             return {
                 "answer": data.get("message", ""),
-                "sources": [
-                    SearchResult(
-                        title=src.get("title", ""),
-                        url=src.get("url", ""),
-                        snippet=src.get("content", "")[:200] if src.get("content") else "",
-                        source="perplexica"
-                    ).to_dict()
-                    for src in data.get("sources", [])
-                ]
+                "sources": sources
             }
         except Exception as e:
-            print(f"Perplexica search error: {e}")
+            print(f"❌ Perplexica search error: {e}")
             return {"answer": "", "sources": []}
     
     async def search(
