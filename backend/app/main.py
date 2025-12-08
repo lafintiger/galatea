@@ -956,6 +956,48 @@ async def generate_response(
                     "text": chunk
                 })
             
+            # DETECT: If LLM says it will search, actually do the search!
+            # Check early in the response (first ~100 chars)
+            if len(full_response) < 150 and len(full_response) > 20:
+                response_lower = full_response.lower()
+                search_phrases = [
+                    "let me look that up",
+                    "let me search",
+                    "i'll search",
+                    "i will search",
+                    "let me check",
+                    "i'll look that up",
+                    "i will look that up",
+                    "searching for",
+                    "let me find",
+                    "i'll find out",
+                ]
+                for phrase in search_phrases:
+                    if phrase in response_lower:
+                        # LLM wants to search - extract query from user's last message
+                        user_messages = [m for m in state.messages if m.get("role") == "user"]
+                        if user_messages:
+                            original_query = user_messages[-1].get("content", "")
+                            print(f"🔍 LLM indicated search intent, triggering search for: {original_query}")
+                            
+                            # Notify frontend
+                            await websocket.send_json({
+                                "type": "llm_chunk",
+                                "text": " Let me search for that...\n\n"
+                            })
+                            
+                            # Remove the incomplete message and do actual search
+                            if state.messages and state.messages[-1].get("role") == "user":
+                                # Keep the user message but trigger search
+                                state.should_interrupt = True
+                                await handle_web_search(
+                                    websocket, state,
+                                    {"query": original_query, "original_request": original_query},
+                                    user_settings
+                                )
+                                return
+                        break
+            
             # Check if we have a complete sentence to speak
             # Look for sentence endings: . ! ? followed by space or end
             sentence_end_match = re.search(r'[.!?](?:\s|$)', sentence_buffer)
