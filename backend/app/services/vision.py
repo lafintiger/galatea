@@ -75,7 +75,7 @@ class VisionService:
         
         try:
             # Load the vision model (model_manager will handle VRAM)
-            await model_manager.load_model(model_name, model_type="vision")
+            await model_manager.load_model(model_name)
             
             # Call Ollama's vision API
             response = await self.client.post(
