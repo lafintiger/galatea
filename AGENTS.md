@@ -12,7 +12,7 @@
 - **Customizable**: User can choose LLM models, voices, and personality
 - **Extensible**: Architecture designed for future integrations (vision, tools, memory)
 
-### Current Status: Phase 3 ✅
+### Current Status: Phase 4 ✅
 - Voice input (STT) via Faster-Whisper
 - LLM chat via Ollama
 - Voice output (TTS) via **Piper** (fast) or **Kokoro** (HD quality)
@@ -27,6 +27,9 @@
 - **Conversation History** - Save/load past conversations with rename/delete
 - **Web Search** - Search via SearXNG or Perplexica, natural language triggers
 - **RAG System** - Background embedding with LanceDB + Ollama (bge-m3)
+- **Search Results Panel** - Shows Perplexica AI summary + clickable source links
+- **Multi-Language Support** - 9 languages via Kokoro (EN, JP, CN, FR, ES, IT, PT, HI)
+- **Vision** - Screenshot/upload images, Gala describes what she sees
 
 ---
 
@@ -131,6 +134,7 @@ galatea/
 │   │   │   ├── wyoming.py       # Wyoming protocol clients (Whisper/Piper)
 │   │   │   ├── kokoro.py        # Kokoro TTS client (OpenAI-compatible API)
 │   │   │   ├── web_search.py    # SearXNG/Perplexica search integration
+│   │   │   ├── vision.py        # Vision analysis (granite, deepseek-ocr, qwen-vl)
 │   │   │   ├── conversation_history.py  # Save/load conversations
 │   │   │   ├── settings_manager.py  # User settings persistence
 │   │   │   ├── embedding.py     # LanceDB vector embeddings via Ollama
@@ -144,12 +148,14 @@ galatea/
 │   ├── src/
 │   │   ├── App.tsx              # Main app layout
 │   │   ├── components/
-│   │   │   ├── VoiceInterface.tsx   # Mic button, status, visualizer, search
-│   │   │   ├── Settings.tsx         # Settings panel
+│   │   │   ├── VoiceInterface.tsx   # Mic button, status, visualizer, search, vision
+│   │   │   ├── Settings.tsx         # Settings panel (voices grouped by language)
 │   │   │   ├── AudioVisualizer.tsx  # Canvas-based audio viz
 │   │   │   ├── Transcript.tsx       # Conversation display + export
 │   │   │   ├── StatusBar.tsx        # Connection status
-│   │   │   └── HistoryPanel.tsx     # Conversation history sidebar
+│   │   │   ├── HistoryPanel.tsx     # Conversation history sidebar
+│   │   │   ├── SearchResultsPanel.tsx  # Perplexica summary + sources display
+│   │   │   └── VisionCapture.tsx    # Screenshot/upload image analysis
 │   │   ├── hooks/
 │   │   │   ├── useWebSocket.ts      # WebSocket + audio queue
 │   │   │   └── useAudioRecorder.ts  # Mic recording + VAD
@@ -392,6 +398,65 @@ This RAG implementation uses the same stack as SanctumWriter:
 
 Future integration will allow shared memory between Gala and SanctumWriter.
 
+### 12. Vision System
+
+Gala can analyze images via screenshot or file upload.
+
+**Smart Model Selection:**
+| User Prompt Contains | Model Used | Purpose |
+|---------------------|------------|---------|
+| "read", "text", "document" | `deepseek-ocr` | Text extraction (OCR) |
+| General questions | `granite3.2-vision` | Fast, general purpose |
+| If blocked | `qwen3-vl-abliterated` | Uncensored fallback |
+
+**Flow:**
+```
+User clicks 👁️ → Screenshot or Upload image
+                      ↓
+             Select/enter prompt (or use quick buttons)
+                      ↓
+             VisionService detects intent → picks model
+                      ↓
+             Model analyzes image → returns description
+                      ↓
+             Gala speaks the description via TTS
+```
+
+**API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/vision/analyze` | Analyze image (base64 + prompt) |
+| GET | `/api/vision/models` | Check which vision models are available |
+
+**Required Ollama Models:**
+```bash
+ollama pull granite3.2-vision:latest   # Fast, general (2.4GB)
+ollama pull deepseek-ocr:latest        # Text extraction (6.7GB)
+ollama pull huihui_ai/qwen3-vl-abliterated:2b  # Uncensored fallback
+```
+
+### 13. Multi-Language Support
+
+Kokoro TTS supports 9 languages. Whisper can auto-detect language.
+
+**Supported Languages:**
+| Flag | Language | Voice Prefix | Voices |
+|------|----------|--------------|--------|
+| 🇺🇸 | English (US) | `af_`, `am_` | 27 |
+| 🇬🇧 | English (UK) | `bf_`, `bm_` | 10 |
+| 🇯🇵 | Japanese | `jf_`, `jm_` | 5 |
+| 🇨🇳 | Chinese | `zf_`, `zm_` | 8 |
+| 🇫🇷 | French | `ff_` | 1 |
+| 🇪🇸 | Spanish | `ef_`, `em_` | 3 |
+| 🇮🇹 | Italian | `if_`, `im_` | 2 |
+| 🇵🇹 | Portuguese | `pf_`, `pm_` | 3 |
+| 🇮🇳 | Hindi | `hf_`, `hm_` | 4 |
+
+**To Enable:**
+1. Remove `--language en` from Whisper Docker command (enables auto-detect)
+2. Select a voice from the desired language in Settings
+3. Speak in that language!
+
 ---
 
 ## 🎨 UI/UX Decisions
@@ -468,15 +533,17 @@ docker start wyoming-whisper piper
 | **Conversation History** | Save/load past conversations with rename/delete |
 | **Web Search** | SearXNG + Perplexica integration with natural language triggers |
 | **RAG System** | LanceDB + Ollama embeddings with background processing |
+| **Search Results Panel** | Shows Perplexica AI summary + clickable source links |
+| **Multi-Language** | 9 languages via Kokoro (EN, JP, CN, FR, ES, IT, PT, HI) with flag groupings |
+| **Vision** | Screenshot/upload images, auto model selection (granite/deepseek-ocr/qwen-vl) |
 
-### 📋 Phase 4: Future Features
+### 📋 Phase 5: Future Features
 
 | Feature | Description | Complexity |
 |---------|-------------|------------|
+| **Save Search to RAG** | Store search results in knowledge base for future reference | Low |
 | **Multiple Personas** | Switch between Gala "personalities" | Medium |
-| **Vision** | Describe images/screenshots | High |
 | **Tool Calling** | File ops, code execution, smart home | High |
-| **Multi-language** | Support other languages for voice | Medium |
 | **Emotion Detection** | Analyze user sentiment | High |
 
 **Not Planned** (per user preference):
@@ -526,7 +593,7 @@ docker start wyoming-whisper piper
 ---
 
 *Last updated: December 8, 2024*
-*Phase: 2 (Conversation History + Web Search)*
+*Phase: 4 (Vision + Multi-Language)*
 *Repository: https://github.com/lafintiger/galatea*
 
 
