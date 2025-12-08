@@ -1,5 +1,4 @@
-# Galatea Backend Dependencies - Phase 1
-# Note: LanceDB + Ollama embeddings will be added in Phase 2 for RAG (compatible with SanctumWriter)
+# Galatea Backend Dependencies - Phase 3 (RAG)
 
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
@@ -8,8 +7,10 @@ python-dotenv>=1.0.0
 pydantic>=2.5.0
 pydantic-settings>=2.1.0
 httpx>=0.26.0
-aiosqlite>=0.19.0
-sqlalchemy[asyncio]>=2.0.25
 python-multipart>=0.0.6
 aiofiles>=23.2.1
 wyoming>=1.5.0
+
+# RAG - LanceDB + Ollama embeddings (compatible with SanctumWriter)
+lancedb>=0.6.0
+pyarrow>=16.0.0

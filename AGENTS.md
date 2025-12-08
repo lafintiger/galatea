@@ -12,7 +12,7 @@
 - **Customizable**: User can choose LLM models, voices, and personality
 - **Extensible**: Architecture designed for future integrations (vision, tools, memory)
 
-### Current Status: Phase 2 ✅
+### Current Status: Phase 3 ✅
 - Voice input (STT) via Faster-Whisper
 - LLM chat via Ollama
 - Voice output (TTS) via **Piper** (fast) or **Kokoro** (HD quality)
@@ -26,6 +26,7 @@
 - **Enhanced Status Bar** - Shows model info, TTS provider, retry button
 - **Conversation History** - Save/load past conversations with rename/delete
 - **Web Search** - Search via SearXNG or Perplexica, natural language triggers
+- **RAG System** - Background embedding with LanceDB + Ollama (Qwen3-Embedding-8B)
 
 ---
 
@@ -56,12 +57,13 @@
 │  │ (WS handler)│  │ (LLM client)│  │  (STT/TTS clients)      │ │
 │  └──────┬──────┘  └──────┬──────┘  └───────────┬─────────────┘ │
 │         │                │                      │               │
-│  ┌──────┴──────┐  ┌──────┴──────┐               │               │
-│  │web_search.py│  │conversation │               │               │
-│  │(SearXNG/    │  │_history.py  │               │               │
-│  │ Perplexica) │  │(save/load)  │               │               │
-│  └──────┬──────┘  └─────────────┘               │               │
-└─────────┼───────────────────────────────────────┼───────────────┘
+│  ┌──────┴──────┐  ┌──────┴──────┐  ┌─────────────────────────┐ │
+│  │web_search.py│  │conversation │  │  RAG Services           │ │
+│  │(SearXNG/    │  │_history.py  │  │  embedding.py (LanceDB) │ │
+│  │ Perplexica) │  │(save/load)  │  │  model_manager.py       │ │
+│  └──────┬──────┘  └─────────────┘  │  background_worker.py   │ │
+│         │                          └───────────┬─────────────┘ │
+└─────────┼──────────────────────────────────────┼───────────────┘
           │                                       │
           ▼                                       ▼
     ┌──────────┐    ┌──────────┐    ┌──────────────────────────┐
@@ -130,7 +132,10 @@ galatea/
 │   │   │   ├── kokoro.py        # Kokoro TTS client (OpenAI-compatible API)
 │   │   │   ├── web_search.py    # SearXNG/Perplexica search integration
 │   │   │   ├── conversation_history.py  # Save/load conversations
-│   │   │   └── settings_manager.py  # User settings persistence
+│   │   │   ├── settings_manager.py  # User settings persistence
+│   │   │   ├── embedding.py     # LanceDB vector embeddings via Ollama
+│   │   │   ├── model_manager.py # Ollama model load/unload for VRAM
+│   │   │   └── background_worker.py  # Background embedding processor
 │   │   └── models/
 │   │       └── schemas.py       # Pydantic models (UserSettings, etc.)
 │   └── requirements.txt
@@ -332,6 +337,61 @@ Save and load past conversations via the History panel (🕐 button in header).
 | DELETE | `/api/conversations/{id}` | Delete conversation |
 | PATCH | `/api/conversations/{id}` | Rename conversation |
 
+### 11. RAG System (Background Embeddings)
+
+Gala uses LanceDB + Ollama embeddings for semantic memory. Embeddings are processed **in the background** to avoid interrupting conversation flow.
+
+**Architecture:**
+```
+User saves conversation → JSON stored immediately
+                            ↓
+                       Added to embedding queue
+                            ↓
+                       (User is idle for 5 minutes)
+                            ↓
+        ┌─────────────────────────────────────┐
+        │  Background Worker                  │
+        │  1. Unload chat model (free VRAM)   │
+        │  2. Load embedding model (5.4GB)    │
+        │  3. Embed all pending conversations │
+        │  4. Store vectors in LanceDB        │
+        │  5. Unload embedding model          │
+        │  6. Reload chat model               │
+        └─────────────────────────────────────┘
+                            ↓
+        User asks question → RAG retrieves similar context
+                            ↓
+        Context injected into system prompt → Better answers!
+```
+
+**Components:**
+
+| File | Purpose |
+|------|---------|
+| `embedding.py` | LanceDB storage + Ollama embedding API calls |
+| `model_manager.py` | Load/unload Ollama models for VRAM management |
+| `background_worker.py` | Idle detection + batch processing |
+
+**Configuration:**
+- **Embedding Model**: `ZimaBlueAI/Qwen3-Embedding-8B:Q5_K_M` (5.4GB, high quality)
+- **Idle Timeout**: 5 minutes of no activity before processing
+- **Vector Dimensions**: 4096 (Qwen3-Embedding output)
+
+**API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/rag/status` | Worker status, pending count, embedding stats |
+| POST | `/api/rag/process` | Manually trigger embedding (bypass idle wait) |
+| GET | `/api/rag/search?query=...` | Search the knowledge base directly |
+
+**SanctumWriter Compatibility:**
+This RAG implementation uses the same stack as SanctumWriter:
+- **LanceDB** for vector storage
+- **Ollama embeddings** API
+- Same embedding model options
+
+Future integration will allow shared memory between Gala and SanctumWriter.
+
 ---
 
 ## 🎨 UI/UX Decisions
@@ -407,17 +467,7 @@ docker start wyoming-whisper piper
 | **Enhanced Status Bar** | Model size, TTS provider badge, retry button |
 | **Conversation History** | Save/load past conversations with rename/delete |
 | **Web Search** | SearXNG + Perplexica integration with natural language triggers |
-
-### 🔜 Phase 3: Memory & RAG
-
-**Architecture Decision**: Will use **LanceDB + Ollama embeddings** (compatible with SanctumWriter)
-
-| Feature | Description |
-|---------|-------------|
-| **Semantic Search** | Find relevant past discussions |
-| **User Facts** | Remember things about the user |
-| **Context Injection** | Add relevant memories to LLM prompts |
-| **Shared Memory** | Integrate with SanctumWriter knowledge base |
+| **RAG System** | LanceDB + Ollama embeddings with background processing |
 
 ### 📋 Phase 4: Future Features
 

@@ -16,6 +16,9 @@ from .services.kokoro import kokoro_service
 from .services.settings_manager import settings_manager
 from .services.conversation_history import conversation_history
 from .services.web_search import web_search
+from .services.embedding import embedding_service
+from .services.model_manager import model_manager
+from .services.background_worker import background_worker
 from .models.schemas import UserSettings
 
 
@@ -89,7 +92,16 @@ async def lifespan(app: FastAPI):
     print(f"   Ollama: {settings.ollama_base_url}")
     print(f"   Whisper: {settings.whisper_host}:{settings.whisper_port}")
     print(f"   Piper: {settings.piper_host}:{settings.piper_port}")
+    print(f"   LanceDB: {embedding_service.db_path}")
+    
+    # Start background embedding worker
+    user_settings = settings_manager.load()
+    background_worker.start(user_settings.selected_model)
+    
     yield
+    
+    # Stop background worker
+    background_worker.stop()
     print("💤 Galatea is going to sleep...")
 
 
@@ -316,6 +328,10 @@ async def save_conversation(data: dict):
             conversation_id=conversation_id,
             title=title
         )
+        
+        # Add to embedding queue for background processing
+        background_worker.add_to_queue(conversation.id)
+        
         return conversation.model_dump()
     except Exception as e:
         return JSONResponse(
@@ -396,6 +412,57 @@ async def perform_search(data: dict):
         )
 
 
+# ============== RAG / Embedding Endpoints ==============
+
+@app.get("/api/rag/status")
+async def rag_status():
+    """Get RAG system status"""
+    worker_status = background_worker.get_status()
+    embedding_stats = embedding_service.get_stats()
+    model_info = await model_manager.get_vram_info()
+    
+    return {
+        "worker": worker_status,
+        "embeddings": embedding_stats,
+        "models": model_info,
+    }
+
+
+@app.post("/api/rag/process")
+async def trigger_embedding():
+    """Manually trigger embedding processing (bypasses idle wait)"""
+    user_settings = settings_manager.load()
+    
+    if background_worker.is_processing:
+        return {"message": "Already processing", "status": "busy"}
+    
+    # Process in background
+    import asyncio
+    asyncio.create_task(
+        background_worker.process_pending_embeddings(user_settings.selected_model)
+    )
+    
+    return {"message": "Processing started", "status": "started"}
+
+
+@app.get("/api/rag/search")
+async def rag_search(query: str, limit: int = 5):
+    """Search the RAG knowledge base
+    
+    Args:
+        query: Search query
+        limit: Max results (default 5)
+    """
+    try:
+        results = await embedding_service.search_similar(query, limit=limit)
+        return {"results": results, "count": len(results)}
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
 # ============== WebSocket Handler ==============
 
 class ConversationState:
@@ -429,6 +496,9 @@ async def websocket_endpoint(websocket: WebSocket):
             # Receive message
             data = await websocket.receive_json()
             msg_type = data.get("type")
+            
+            # Record user activity (resets idle timer for background embedding)
+            background_worker.record_activity()
             
             if msg_type == "audio_data":
                 # Process voice input
@@ -794,6 +864,31 @@ async def generate_response(
         response_style=user_settings.response_style,
         time_context=time_context,
     )
+    
+    # Try to get relevant context from RAG (if embeddings exist)
+    rag_context = ""
+    try:
+        # Get the most recent user message for RAG query
+        user_messages = [m for m in state.messages if m.get("role") == "user"]
+        if user_messages:
+            last_user_msg = user_messages[-1].get("content", "")
+            similar = await embedding_service.search_similar(last_user_msg, limit=3)
+            
+            if similar:
+                rag_context = "\n\n[Relevant context from past conversations:]\n"
+                for item in similar:
+                    # Don't include context that's too similar (it's from the current conversation)
+                    if item.get("score", 0) < 0.95:  # Skip near-duplicates
+                        rag_context += f"- {item['role'].title()}: {item['content'][:200]}...\n"
+                
+                if rag_context.strip().endswith(":]\n"):
+                    rag_context = ""  # No useful context found
+    except Exception as e:
+        print(f"RAG retrieval error (non-fatal): {e}")
+    
+    # Inject RAG context into system prompt if found
+    if rag_context:
+        system_prompt = system_prompt + rag_context
     
     # Stream LLM response with sentence-level TTS for lower latency
     full_response = ""
