@@ -4,14 +4,17 @@ import { Settings } from './components/Settings'
 import { Transcript } from './components/Transcript'
 import { StatusBar } from './components/StatusBar'
 import { HistoryPanel } from './components/HistoryPanel'
+import { SearchResultsPanel } from './components/SearchResultsPanel'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useSettingsStore } from './stores/settingsStore'
+import { useConversationStore } from './stores/conversationStore'
 import { Settings as SettingsIcon, Clock } from 'lucide-react'
 
 function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const { settings } = useSettingsStore()
+  const { searchResults } = useConversationStore()
   const websocket = useWebSocket()
 
   // Close other panels when opening one
@@ -93,6 +96,20 @@ function App() {
           </aside>
         )}
       </main>
+
+      {/* Search Results - Above Transcript */}
+      {searchResults && (
+        <div className="relative z-10 px-4 py-3 border-t border-cyber-accent/20">
+          <SearchResultsPanel 
+            results={searchResults} 
+            onSaveToKnowledge={() => {
+              // TODO: Implement save to RAG knowledge base
+              console.log('Save to knowledge base:', searchResults)
+              alert('Save to Knowledge Base coming soon!')
+            }}
+          />
+        </div>
+      )}
 
       {/* Transcript - Bottom */}
       {settings.transcript_visible && (

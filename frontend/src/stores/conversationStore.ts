@@ -10,6 +10,20 @@ export interface Message {
   timestamp: Date
 }
 
+export interface SearchSource {
+  title: string
+  url: string
+  snippet: string
+}
+
+export interface SearchResults {
+  query: string
+  provider: string
+  summary: string
+  sources: SearchSource[]
+  timestamp: Date
+}
+
 interface ConversationStoreState {
   connectionStatus: ConnectionStatus
   conversationState: ConversationState
@@ -23,6 +37,9 @@ interface ConversationStoreState {
   searchQuery: string | null        // Current search query
   thinkingContent: string           // Thinking model's internal thoughts
   statusDetail: string | null       // Additional status detail text
+  
+  // Search results display
+  searchResults: SearchResults | null  // Latest search results to display
   
   setConnectionStatus: (status: ConnectionStatus) => void
   setConversationState: (state: ConversationState) => void
@@ -42,6 +59,10 @@ interface ConversationStoreState {
   appendThinkingContent: (chunk: string) => void
   clearThinkingContent: () => void
   setStatusDetail: (detail: string | null) => void
+  
+  // Search results actions
+  setSearchResults: (results: SearchResults | null) => void
+  clearSearchResults: () => void
 }
 
 export const useConversationStore = create<ConversationStoreState>((set) => ({
@@ -57,6 +78,9 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   searchQuery: null,
   thinkingContent: '',
   statusDetail: null,
+  
+  // Search results
+  searchResults: null,
   
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
   
@@ -145,6 +169,10 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   clearThinkingContent: () => set({ thinkingContent: '' }),
   
   setStatusDetail: (statusDetail) => set({ statusDetail }),
+  
+  // Search results actions
+  setSearchResults: (searchResults) => set({ searchResults }),
+  clearSearchResults: () => set({ searchResults: null }),
 }))
 
 

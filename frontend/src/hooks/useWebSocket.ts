@@ -21,6 +21,7 @@ export function useWebSocket() {
     appendThinkingContent,
     clearThinkingContent,
     setStatusDetail,
+    setSearchResults,
   } = useConversationStore()
   
   const { setSettings, setModels, setVoices } = useSettingsStore()
@@ -116,7 +117,20 @@ export function useWebSocket() {
       case 'search_results':
         console.log('🔍 Search results:', data.data)
         setStatusDetail(`Found ${data.data?.results?.length || 0} results`)
-        // Results will be used by LLM to generate response
+        // Store full search results for display in UI
+        if (data.data) {
+          setSearchResults({
+            query: data.data.query || '',
+            provider: data.data.provider || 'unknown',
+            summary: data.data.summary || '',
+            sources: (data.data.results || []).map((r: any) => ({
+              title: r.title || '',
+              url: r.url || '',
+              snippet: r.snippet || '',
+            })),
+            timestamp: new Date(),
+          })
+        }
         break
 
       case 'transcription':
