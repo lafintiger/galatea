@@ -1,8 +1,120 @@
 """Ollama LLM Service"""
 import httpx
 import json
+from datetime import datetime
 from typing import AsyncGenerator, Optional
 from ..config import settings
+
+
+def get_time_context(dt: Optional[datetime] = None) -> dict:
+    """Generate rich time context for the AI"""
+    if dt is None:
+        dt = datetime.now()
+    
+    hour = dt.hour
+    weekday = dt.weekday()  # 0=Monday, 6=Sunday
+    day_name = dt.strftime("%A")
+    month = dt.month
+    day = dt.day
+    
+    # Time of day
+    if 5 <= hour < 12:
+        time_of_day = "morning"
+        greeting_suggestion = "Good morning"
+    elif 12 <= hour < 17:
+        time_of_day = "afternoon"
+        greeting_suggestion = "Good afternoon"
+    elif 17 <= hour < 21:
+        time_of_day = "evening"
+        greeting_suggestion = "Good evening"
+    else:
+        time_of_day = "night"
+        greeting_suggestion = "Hey there, night owl"
+    
+    # Weekend vs weekday
+    is_weekend = weekday >= 5
+    
+    # Special time observations
+    observations = []
+    
+    if hour >= 23 or hour < 5:
+        observations.append("it's quite late")
+    elif hour >= 5 and hour < 7:
+        observations.append("it's early")
+    
+    if weekday == 4:  # Friday
+        observations.append("it's Friday")
+    elif weekday == 0:  # Monday
+        observations.append("it's Monday")
+    
+    # Common US holidays (simple check)
+    holidays = _check_holidays(month, day, weekday)
+    if holidays:
+        observations.extend(holidays)
+    
+    return {
+        "datetime": dt,
+        "formatted": dt.strftime("%A, %B %d, %Y at %I:%M %p"),
+        "time_of_day": time_of_day,
+        "greeting_suggestion": greeting_suggestion,
+        "day_name": day_name,
+        "is_weekend": is_weekend,
+        "hour": hour,
+        "observations": observations,
+    }
+
+
+def _check_holidays(month: int, day: int, weekday: int) -> list[str]:
+    """Check for common holidays and special days"""
+    holidays = []
+    
+    # Fixed-date holidays
+    if month == 1 and day == 1:
+        holidays.append("Happy New Year!")
+    elif month == 2 and day == 14:
+        holidays.append("it's Valentine's Day")
+    elif month == 7 and day == 4:
+        holidays.append("Happy 4th of July!")
+    elif month == 10 and day == 31:
+        holidays.append("it's Halloween")
+    elif month == 12 and day == 25:
+        holidays.append("Merry Christmas!")
+    elif month == 12 and day == 31:
+        holidays.append("it's New Year's Eve")
+    
+    # Approximate floating holidays
+    # Thanksgiving (4th Thursday of November)
+    if month == 11 and weekday == 3 and 22 <= day <= 28:
+        holidays.append("Happy Thanksgiving!")
+    
+    # Christmas Eve
+    if month == 12 and day == 24:
+        holidays.append("it's Christmas Eve")
+    
+    # December holiday season
+    if month == 12 and 20 <= day <= 26:
+        if day not in [24, 25]:
+            holidays.append("the holiday season is here")
+    
+    return holidays
+
+
+def format_time_for_prompt(time_context: dict) -> str:
+    """Format time context as natural language for the system prompt"""
+    lines = [f"Current time: {time_context['formatted']}"]
+    
+    parts = []
+    if time_context['is_weekend']:
+        parts.append("it's the weekend")
+    
+    parts.extend(time_context['observations'])
+    
+    if parts:
+        lines.append(f"Context: {', '.join(parts)}.")
+    
+    lines.append(f"Appropriate greeting style: {time_context['greeting_suggestion']}")
+    
+    return "\n".join(lines)
 
 
 class OllamaService:
@@ -99,10 +211,22 @@ class OllamaService:
         response_style: str = "conversational",
         user_name: str = "User",
         current_time: Optional[str] = None,
+        time_context: Optional[dict] = None,
         memories: Optional[str] = None,
         enable_thinking: bool = False
     ) -> str:
-        """Build the system prompt for Galatea"""
+        """Build the system prompt for Galatea
+        
+        Args:
+            assistant_name: Full name of the assistant
+            nickname: Short name (e.g., "Gala")
+            response_style: "conversational" or "concise"
+            user_name: Name of the user if known
+            current_time: Simple time string (legacy, prefer time_context)
+            time_context: Rich time context from get_time_context()
+            memories: RAG context from past conversations
+            enable_thinking: Whether to allow chain-of-thought
+        """
         
         style_instruction = ""
         if response_style == "concise":
@@ -147,9 +271,32 @@ CRITICAL - This is a VOICE conversation that will be spoken aloud by text-to-spe
 - Express ALL emotions through natural spoken words only
 - Keep responses conversational and flowing, as if speaking to a friend
 - Be warm and genuine but authentic, not performative
+
+WEB SEARCH CAPABILITIES:
+You have access to web search through SearXNG and Perplexica. The system will automatically search when it detects you need current information.
+
+IMPORTANT: If someone asks you a question and you don't know the answer, or if they're asking about:
+- Current events, news, or recent happenings
+- Weather forecasts or conditions
+- Prices, stock values, or costs of things
+- Sports scores, game results, or standings
+- Release dates, schedules, or hours of operation
+- Any factual information you're uncertain about
+
+Then TELL THEM you'll search for that information. Say something like:
+"Let me look that up for you" or "I'll search for that" or "Let me check on that"
+
+This signals to the system to perform a web search. Don't make up information or pretend to know things you don't - instead, acknowledge you need to search.
+
+When you receive search results (marked with [Web Search:]), summarize the key information naturally and conversationally, citing where the information came from when relevant.
 """
         
-        if current_time:
+        # Add time awareness
+        if time_context:
+            prompt += f"\n{format_time_for_prompt(time_context)}"
+            prompt += "\nUse this time awareness naturally - greet appropriately, acknowledge if it's late/early/weekend/holiday, but don't force it into every response."
+        elif current_time:
+            # Legacy fallback
             prompt += f"\nCurrent time: {current_time}"
         
         if user_name and user_name != "User":

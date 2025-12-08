@@ -7,6 +7,8 @@ export function useWebSocket() {
   const audioContextRef = useRef<AudioContext | null>(null)
   const audioQueueRef = useRef<string[]>([])
   const isPlayingRef = useRef(false)
+  const currentSourceRef = useRef<AudioBufferSourceNode | null>(null)
+  const isInterruptedRef = useRef(false)
   const {
     setConnectionStatus,
     setConversationState,
@@ -18,6 +20,29 @@ export function useWebSocket() {
   } = useConversationStore()
   
   const { setSettings, setModels, setVoices } = useSettingsStore()
+
+  // Stop all audio playback - defined early so it can be used in handlers
+  const stopAllAudio = () => {
+    console.log('🛑 Stopping all audio')
+    
+    // Set interrupted flag
+    isInterruptedRef.current = true
+    
+    // Clear the audio queue
+    audioQueueRef.current = []
+    
+    // Stop currently playing audio
+    if (currentSourceRef.current) {
+      try {
+        currentSourceRef.current.stop()
+        currentSourceRef.current = null
+      } catch (e) {
+        // May already be stopped
+      }
+    }
+    
+    isPlayingRef.current = false
+  }
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return
@@ -66,10 +91,19 @@ export function useWebSocket() {
   const handleMessage = useCallback(async (data: any) => {
     switch (data.type) {
       case 'status':
-        setConversationState(data.state)
+        setConversationState(data.state as any)
         if (data.settings) {
           setSettings(data.settings)
         }
+        break
+
+      case 'search_start':
+        console.log('🔍 Search started:', data.query)
+        break
+
+      case 'search_results':
+        console.log('🔍 Search results:', data.data)
+        // Results will be used by LLM to generate response
         break
 
       case 'transcription':
@@ -113,6 +147,9 @@ export function useWebSocket() {
         break
 
       case 'interrupted':
+        console.log('🛑 Received interrupt confirmation')
+        stopAllAudio()
+        clearCurrentResponse()
         setConversationState('idle')
         break
 
@@ -130,6 +167,12 @@ export function useWebSocket() {
   const playAudioBuffer = async (base64Audio: string): Promise<void> => {
     return new Promise(async (resolve, reject) => {
       try {
+        // Check if interrupted before playing
+        if (isInterruptedRef.current) {
+          resolve()
+          return
+        }
+
         if (!audioContextRef.current) {
           audioContextRef.current = new AudioContext()
         }
@@ -150,8 +193,18 @@ export function useWebSocket() {
         const source = audioContextRef.current.createBufferSource()
         source.buffer = audioBuffer
         source.connect(audioContextRef.current.destination)
-        source.onended = () => resolve()
-        source.onerror = () => reject(new Error('Audio playback error'))
+        
+        // Track the current source so we can stop it on interrupt
+        currentSourceRef.current = source
+        
+        source.onended = () => {
+          currentSourceRef.current = null
+          resolve()
+        }
+        source.onerror = () => {
+          currentSourceRef.current = null
+          reject(new Error('Audio playback error'))
+        }
         source.start()
       } catch (e) {
         reject(e)
@@ -163,8 +216,9 @@ export function useWebSocket() {
     if (isPlayingRef.current) return
     
     isPlayingRef.current = true
+    isInterruptedRef.current = false
     
-    while (audioQueueRef.current.length > 0) {
+    while (audioQueueRef.current.length > 0 && !isInterruptedRef.current) {
       const audio = audioQueueRef.current.shift()
       if (audio) {
         try {
@@ -176,7 +230,11 @@ export function useWebSocket() {
     }
     
     isPlayingRef.current = false
-    setConversationState('idle')
+    
+    // Only set idle if not interrupted (interrupt handler sets idle)
+    if (!isInterruptedRef.current) {
+      setConversationState('idle')
+    }
   }
 
   const queueAudioChunk = (base64Audio: string) => {
@@ -228,12 +286,21 @@ export function useWebSocket() {
   }, [setError, setConversationState])
 
   const interrupt = useCallback(() => {
-    if (wsRef.current?.readyState !== WebSocket.OPEN) return
+    console.log('🛑 Interrupt requested')
     
-    wsRef.current.send(JSON.stringify({
-      type: 'interrupt',
-    }))
-  }, [])
+    // Immediately stop local audio playback for responsiveness
+    stopAllAudio()
+    clearCurrentResponse()
+    
+    // Send interrupt to backend to cancel TTS generation
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'interrupt',
+      }))
+    }
+    
+    setConversationState('idle')
+  }, [clearCurrentResponse, setConversationState])
 
   const updateSettings = useCallback((settings: any) => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return
@@ -243,6 +310,19 @@ export function useWebSocket() {
       settings,
     }))
   }, [])
+
+  const webSearch = useCallback((query: string, followUp?: string, provider: 'auto' | 'searxng' | 'perplexica' = 'auto') => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return
+    
+    wsRef.current.send(JSON.stringify({
+      type: 'web_search',
+      query,
+      follow_up: followUp,
+      provider,
+    }))
+    
+    setConversationState('processing')
+  }, [setConversationState])
 
   const clearHistory = useCallback(() => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return
@@ -266,7 +346,11 @@ export function useWebSocket() {
     try {
       const response = await fetch('/api/voices')
       const data = await response.json()
-      setVoices(data.voices || [])
+      // New API returns { piper: [...], kokoro: [...], voices: [...] }
+      const piperVoices = data.piper || []
+      const kokoroVoices = data.kokoro || []
+      const allVoices = data.voices || [...piperVoices, ...kokoroVoices]
+      setVoices(allVoices, piperVoices, kokoroVoices)
     } catch (e) {
       console.error('Failed to fetch voices:', e)
     }
@@ -291,6 +375,7 @@ export function useWebSocket() {
     interrupt,
     updateSettings,
     clearHistory,
+    webSearch,
   }
 }
 

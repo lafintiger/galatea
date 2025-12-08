@@ -50,6 +50,8 @@ class SettingsManager:
         return self.save(UserSettings(**updated_data))
 
 
-# Singleton instance
+# Singleton instance - Note: settings are cached, restart needed after file changes
 settings_manager = SettingsManager()
+
+
 

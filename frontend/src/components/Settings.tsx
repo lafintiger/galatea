@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useSettingsStore } from '../stores/settingsStore'
-import { X, Volume2, Bot, Sparkles, Play, Loader2, Square, AlertCircle, Mic } from 'lucide-react'
+import { X, Volume2, Bot, Sparkles, Play, Loader2, Square, AlertCircle, Mic, Zap, Crown } from 'lucide-react'
 
 interface SettingsProps {
   websocket: {
@@ -11,7 +11,7 @@ interface SettingsProps {
 }
 
 export function Settings({ websocket, onClose }: SettingsProps) {
-  const { settings, models, voices, updateSetting } = useSettingsStore()
+  const { settings, models, voices, piperVoices, kokoroVoices, updateSetting } = useSettingsStore()
   const [isTestingVoice, setIsTestingVoice] = useState(false)
   const [testingVoiceId, setTestingVoiceId] = useState<string | null>(null)
   const [voiceTestError, setVoiceTestError] = useState<string | null>(null)
@@ -60,8 +60,9 @@ export function Settings({ websocket, onClose }: SettingsProps) {
     }, 30000)
     
     try {
-      console.log('Testing voice:', voiceId)
-      const response = await fetch(`/api/voices/test/${encodeURIComponent(voiceId)}`, {
+      console.log('Testing voice:', voiceId, 'with provider:', settings.tts_provider)
+      const provider = settings.tts_provider || 'piper'
+      const response = await fetch(`/api/voices/test/${encodeURIComponent(voiceId)}?provider=${provider}`, {
         signal: controller.signal
       })
       
@@ -191,11 +192,61 @@ export function Settings({ websocket, onClose }: SettingsProps) {
           </select>
         </section>
 
-        {/* Voice Selection */}
+        {/* TTS Engine Selection */}
         <section>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
             <Volume2 className="w-4 h-4 text-cyber-purple" />
-            Voice
+            Voice Engine
+          </h3>
+          
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => {
+                handleSettingChange('tts_provider', 'piper')
+                // Auto-select a Piper voice if switching
+                if (piperVoices.length > 0) {
+                  handleSettingChange('selected_voice', piperVoices[0].id)
+                }
+              }}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
+                ${settings.tts_provider === 'piper'
+                  ? 'bg-green-500/20 border-green-500 text-green-400'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              <Zap className="w-4 h-4" />
+              Piper (Fast)
+            </button>
+            <button
+              onClick={() => {
+                handleSettingChange('tts_provider', 'kokoro')
+                // Auto-select a Kokoro voice if switching
+                if (kokoroVoices.length > 0) {
+                  handleSettingChange('selected_voice', kokoroVoices[0].id)
+                }
+              }}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
+                ${settings.tts_provider === 'kokoro'
+                  ? 'bg-cyber-purple/20 border-cyber-purple text-cyber-purple'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              <Crown className="w-4 h-4" />
+              Kokoro (HD)
+            </button>
+          </div>
+          
+          <p className="text-xs text-slate-500 mb-4">
+            {settings.tts_provider === 'kokoro' 
+              ? '✨ High-quality natural speech (CPU-based, ~1-2s latency)'
+              : '⚡ Fast response times (CPU-based, <500ms latency)'}
+          </p>
+        </section>
+
+        {/* Voice Selection */}
+        <section>
+          <h3 className="text-sm font-semibold text-slate-300 mb-3">
+            Voice Selection
           </h3>
           
           <div className="flex gap-2">
@@ -205,35 +256,79 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               className="flex-1 px-3 py-2 rounded bg-cyber-dark border border-cyber-accent/30
                          text-slate-200 text-sm focus:outline-none focus:border-cyber-accent"
             >
-              {/* Recommended high-quality English voices first */}
-              <optgroup label="⭐ Recommended (High Quality)">
-                {voices
-                  .filter(v => v.id.includes('-high') && (v.language.startsWith('en_US') || v.language.startsWith('en_GB')))
-                  .map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.name} ({voice.language})
-                    </option>
-                  ))}
-              </optgroup>
-              <optgroup label="English (US & GB)">
-                {voices
-                  .filter(v => !v.id.includes('-high') && (v.language.startsWith('en_US') || v.language.startsWith('en_GB')))
-                  .map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.name} ({voice.language})
-                    </option>
-                  ))}
-              </optgroup>
-              <optgroup label="Other Languages">
-                {voices
-                  .filter(v => !v.language.startsWith('en_US') && !v.language.startsWith('en_GB'))
-                  .map((voice) => (
-                    <option key={voice.id} value={voice.id}>
-                      {voice.name} ({voice.language})
-                    </option>
-                  ))}
-              </optgroup>
-              {voices.length === 0 && (
+              {settings.tts_provider === 'kokoro' ? (
+                // Kokoro voices
+                <>
+                  <optgroup label="⭐ American Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('af_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="American Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('am_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="British Female">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('bf_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="British Male">
+                    {kokoroVoices
+                      .filter(v => v.id.startsWith('bm_'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name}
+                        </option>
+                      ))}
+                  </optgroup>
+                </>
+              ) : (
+                // Piper voices
+                <>
+                  <optgroup label="⭐ Recommended (High Quality)">
+                    {piperVoices
+                      .filter(v => v.id.includes('-high') && (v.language.startsWith('en_US') || v.language.startsWith('en_GB')))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name} ({voice.language})
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="English (US & GB)">
+                    {piperVoices
+                      .filter(v => !v.id.includes('-high') && (v.language.startsWith('en_US') || v.language.startsWith('en_GB')))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name} ({voice.language})
+                        </option>
+                      ))}
+                  </optgroup>
+                  <optgroup label="Other Languages">
+                    {piperVoices
+                      .filter(v => !v.language.startsWith('en_US') && !v.language.startsWith('en_GB'))
+                      .map((voice) => (
+                        <option key={voice.id} value={voice.id}>
+                          {voice.name} ({voice.language})
+                        </option>
+                      ))}
+                  </optgroup>
+                </>
+              )}
+              {(settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).length === 0 && (
                 <option value={settings.selected_voice}>
                   {settings.selected_voice}
                 </option>
@@ -276,7 +371,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
           {/* Voice Preview List */}
           <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
             <p className="text-xs text-slate-500 mb-2">Click to preview any voice:</p>
-            {voices.map((voice) => (
+            {(settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).map((voice) => (
               <button
                 key={voice.id}
                 onClick={() => {
@@ -300,70 +395,72 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             ))}
           </div>
           
-          {/* Voice Tuning */}
-          <div className="mt-4 pt-4 border-t border-cyber-accent/20">
-            <p className="text-xs text-slate-500 mb-3">Voice Tuning (for more natural speech):</p>
-            
-            <div className="space-y-3">
-              {/* Speed */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">Speed</span>
-                  <span className="text-cyber-accent">{settings.voice_speed?.toFixed(1) || '1.0'}x</span>
+          {/* Voice Tuning - Only show for Piper */}
+          {settings.tts_provider === 'piper' && (
+            <div className="mt-4 pt-4 border-t border-cyber-accent/20">
+              <p className="text-xs text-slate-500 mb-3">Voice Tuning (Piper only):</p>
+              
+              <div className="space-y-3">
+                {/* Speed */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">Speed</span>
+                    <span className="text-cyber-accent">{settings.voice_speed?.toFixed(1) || '1.0'}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.5"
+                    max="2.0"
+                    step="0.1"
+                    value={settings.voice_speed || 1.0}
+                    onChange={(e) => handleSettingChange('voice_speed', parseFloat(e.target.value))}
+                    className="w-full h-1 rounded-lg appearance-none cursor-pointer
+                               bg-cyber-dark accent-cyber-accent"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="2.0"
-                  step="0.1"
-                  value={settings.voice_speed || 1.0}
-                  onChange={(e) => handleSettingChange('voice_speed', parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer
-                             bg-cyber-dark accent-cyber-accent"
-                />
+                
+                {/* Expressiveness */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">Expressiveness</span>
+                    <span className="text-cyber-purple">{Math.round((settings.voice_variation || 0.8) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={settings.voice_variation || 0.8}
+                    onChange={(e) => handleSettingChange('voice_variation', parseFloat(e.target.value))}
+                    className="w-full h-1 rounded-lg appearance-none cursor-pointer
+                               bg-cyber-dark accent-cyber-purple"
+                  />
+                </div>
+                
+                {/* Natural Timing */}
+                <div>
+                  <div className="flex justify-between text-xs mb-1">
+                    <span className="text-slate-400">Natural Timing</span>
+                    <span className="text-green-400">{Math.round((settings.voice_phoneme_var || 0.6) * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={settings.voice_phoneme_var || 0.6}
+                    onChange={(e) => handleSettingChange('voice_phoneme_var', parseFloat(e.target.value))}
+                    className="w-full h-1 rounded-lg appearance-none cursor-pointer
+                               bg-cyber-dark accent-green-400"
+                  />
+                </div>
               </div>
               
-              {/* Expressiveness */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">Expressiveness</span>
-                  <span className="text-cyber-purple">{Math.round((settings.voice_variation || 0.8) * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={settings.voice_variation || 0.8}
-                  onChange={(e) => handleSettingChange('voice_variation', parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer
-                             bg-cyber-dark accent-cyber-purple"
-                />
-              </div>
-              
-              {/* Natural Timing */}
-              <div>
-                <div className="flex justify-between text-xs mb-1">
-                  <span className="text-slate-400">Natural Timing</span>
-                  <span className="text-green-400">{Math.round((settings.voice_phoneme_var || 0.6) * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={settings.voice_phoneme_var || 0.6}
-                  onChange={(e) => handleSettingChange('voice_phoneme_var', parseFloat(e.target.value))}
-                  className="w-full h-1 rounded-lg appearance-none cursor-pointer
-                             bg-cyber-dark accent-green-400"
-                />
-              </div>
+              <p className="text-xs text-slate-600 mt-2 italic">
+                Higher expressiveness + timing = more conversational
+              </p>
             </div>
-            
-            <p className="text-xs text-slate-600 mt-2 italic">
-              Higher expressiveness + timing = more conversational
-            </p>
-          </div>
+          )}
         </section>
 
         {/* Response Style */}

@@ -1,12 +1,27 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { User, Bot } from 'lucide-react'
+import { User, Bot, Trash2, Download, ChevronDown } from 'lucide-react'
 
-export function Transcript() {
-  const { messages, currentTranscript, currentResponse } = useConversationStore()
+interface TranscriptProps {
+  onClear?: () => void
+}
+
+export function Transcript({ onClear }: TranscriptProps) {
+  const { messages, currentTranscript, currentResponse, clearMessages, exportConversation } = useConversationStore()
   const { settings } = useSettingsStore()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const [showExportMenu, setShowExportMenu] = useState(false)
+
+  const handleClear = () => {
+    clearMessages()
+    onClear?.()
+  }
+
+  const handleExport = (format: 'markdown' | 'text' | 'json') => {
+    exportConversation(format)
+    setShowExportMenu(false)
+  }
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -24,10 +39,70 @@ export function Transcript() {
   }
 
   return (
-    <div 
-      ref={scrollRef}
-      className="h-48 overflow-y-auto p-4 space-y-3"
-    >
+    <div className="relative">
+      {/* Action buttons */}
+      {messages.length > 0 && (
+        <div className="absolute top-2 right-2 flex gap-2 z-10">
+          {/* Export dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="p-2 rounded-lg 
+                         bg-cyber-dark/80 border border-slate-700 hover:border-cyber-accent/50
+                         text-slate-500 hover:text-cyber-accent transition-colors
+                         opacity-50 hover:opacity-100 flex items-center gap-1"
+              title="Export conversation"
+            >
+              <Download className="w-4 h-4" />
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 py-1 w-32 rounded-lg 
+                              bg-cyber-dark border border-cyber-accent/30 shadow-lg">
+                <button
+                  onClick={() => handleExport('markdown')}
+                  className="w-full px-3 py-1.5 text-left text-sm text-slate-300 
+                             hover:bg-cyber-accent/20 hover:text-cyber-accent"
+                >
+                  Markdown
+                </button>
+                <button
+                  onClick={() => handleExport('text')}
+                  className="w-full px-3 py-1.5 text-left text-sm text-slate-300 
+                             hover:bg-cyber-accent/20 hover:text-cyber-accent"
+                >
+                  Plain Text
+                </button>
+                <button
+                  onClick={() => handleExport('json')}
+                  className="w-full px-3 py-1.5 text-left text-sm text-slate-300 
+                             hover:bg-cyber-accent/20 hover:text-cyber-accent"
+                >
+                  JSON
+                </button>
+              </div>
+            )}
+          </div>
+          
+          {/* Clear button */}
+          <button
+            onClick={handleClear}
+            className="p-2 rounded-lg 
+                       bg-cyber-dark/80 border border-slate-700 hover:border-red-500/50
+                       text-slate-500 hover:text-red-400 transition-colors
+                       opacity-50 hover:opacity-100"
+            title="Clear conversation"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+      
+      <div 
+        ref={scrollRef}
+        className="h-48 overflow-y-auto p-4 space-y-3"
+      >
       {messages.map((message) => (
         <div
           key={message.id}
@@ -88,7 +163,10 @@ export function Transcript() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }
+
+
 

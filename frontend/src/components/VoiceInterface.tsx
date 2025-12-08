@@ -3,13 +3,14 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { AudioVisualizer } from './AudioVisualizer'
-import { Mic, MicOff, Square, Send, AlertCircle, Radio } from 'lucide-react'
+import { Mic, MicOff, Square, Send, AlertCircle, Radio, Search, X } from 'lucide-react'
 
 interface VoiceInterfaceProps {
   websocket: {
     sendAudio: (blob: Blob) => void
     sendText: (text: string) => void
     interrupt: () => void
+    webSearch: (query: string, followUp?: string, provider?: 'auto' | 'searxng' | 'perplexica') => void
   }
 }
 
@@ -19,6 +20,8 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
   const { isRecording, isListening, startRecording, stopRecording, startVAD, stopVAD, audioLevel } = useAudioRecorder()
   const [textInput, setTextInput] = useState('')
   const [micError, setMicError] = useState<string | null>(null)
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
 
   // Handle VAD mode changes
   useEffect(() => {
@@ -87,6 +90,48 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
     }
   }, [isRecording, startRecording, stopRecording, websocket])
 
+  // Keyboard shortcuts - must be after handlePushToTalk is defined
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // Escape to interrupt
+      if (e.key === 'Escape' && (conversationState === 'speaking' || conversationState === 'processing' || conversationState === 'thinking')) {
+        e.preventDefault()
+        websocket.interrupt()
+      }
+
+      // Spacebar for push-to-talk (start recording)
+      if (e.code === 'Space' && settings.activation_mode === 'push-to-talk' && !isRecording && conversationState === 'idle') {
+        e.preventDefault()
+        handlePushToTalk()
+      }
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      // Ignore if typing in an input
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // Spacebar release to stop recording
+      if (e.code === 'Space' && settings.activation_mode === 'push-to-talk' && isRecording) {
+        e.preventDefault()
+        handlePushToTalk()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+    }
+  }, [conversationState, websocket, settings.activation_mode, isRecording, handlePushToTalk])
+
   const toggleVAD = useCallback(async () => {
     setMicError(null)
     
@@ -123,51 +168,53 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
     }
   }, [textInput, websocket])
 
-  const getStatusText = () => {
+  const getStatusInfo = () => {
+    // VAD mode statuses
     if (settings.activation_mode === 'vad' && isListening && !isRecording) {
-      return '🎤 Open mic - speak anytime...'
+      return { text: 'Open mic active', icon: '🎤', color: 'text-green-400', animate: false }
     }
     if (settings.activation_mode === 'vad' && isRecording) {
-      return '🎤 Listening to you...'
+      return { text: 'Listening...', icon: '🎙️', color: 'text-yellow-400', animate: true }
     }
+
+    // PTT mode statuses
+    if (settings.activation_mode === 'push-to-talk' && isRecording) {
+      return { text: 'Recording...', icon: '🎙️', color: 'text-red-400', animate: true }
+    }
+
+    // Conversation states
     switch (conversationState) {
       case 'listening':
-        return 'Listening...'
+        return { text: 'Listening...', icon: '👂', color: 'text-green-400', animate: true }
       case 'processing':
-        return 'Processing...'
+        return { text: 'Transcribing...', icon: '📝', color: 'text-amber-400', animate: true }
       case 'thinking':
-        return `${settings.assistant_nickname} is thinking...`
+        return { text: `${settings.assistant_nickname} is thinking...`, icon: '🧠', color: 'text-purple-400', animate: true }
       case 'speaking':
-        return `${settings.assistant_nickname} is speaking...`
+        return { text: `${settings.assistant_nickname} is speaking`, icon: '🗣️', color: 'text-cyber-accent', animate: true }
+      case 'searching':
+        return { text: 'Searching the web...', icon: '🔍', color: 'text-blue-400', animate: true }
       default:
-        if (settings.activation_mode === 'vad') {
-          return isListening ? '🎤 Open mic active' : `Ready to chat with ${settings.assistant_nickname}`
+        return { 
+          text: `Ready to chat with ${settings.assistant_nickname}`, 
+          icon: '●', 
+          color: 'text-slate-400',
+          animate: false 
         }
-        return `Ready to chat with ${settings.assistant_nickname}`
     }
   }
 
-  const getStatusColor = () => {
-    switch (conversationState) {
-      case 'listening':
-        return 'text-green-400'
-      case 'processing':
-      case 'thinking':
-        return 'text-amber-400'
-      case 'speaking':
-        return 'text-cyber-accent'
-      default:
-        return 'text-slate-400'
-    }
-  }
+  const statusInfo = getStatusInfo()
 
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
       {/* Status */}
       <div className="flex items-center gap-3">
-        <div className={`status-dot ${conversationState}`} />
-        <span className={`font-body text-lg ${getStatusColor()}`}>
-          {getStatusText()}
+        <span className={`text-xl ${statusInfo.animate ? 'animate-pulse' : ''}`}>
+          {statusInfo.icon}
+        </span>
+        <span className={`font-body text-lg ${statusInfo.color} ${statusInfo.animate ? 'animate-pulse' : ''}`}>
+          {statusInfo.text}
         </span>
       </div>
 
@@ -283,6 +330,16 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
                      disabled:opacity-50 disabled:cursor-not-allowed"
         />
         <button
+          type="button"
+          onClick={() => setShowSearch(true)}
+          disabled={conversationState !== 'idle'}
+          className="px-4 py-3 rounded-lg border border-blue-500/50 bg-blue-500/10 
+                     hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+          title="Web Search"
+        >
+          <Search className="w-5 h-5 text-blue-400" />
+        </button>
+        <button
           type="submit"
           disabled={!textInput.trim() || conversationState !== 'idle'}
           className="px-6 py-3 rounded-lg cyber-btn disabled:opacity-50"
@@ -290,6 +347,71 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
           <Send className="w-5 h-5" />
         </button>
       </form>
+
+      {/* Search Dialog */}
+      {showSearch && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-cyber-dark border border-cyber-accent/30 rounded-lg p-6 w-full max-w-md mx-4">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-display text-lg text-cyber-accent flex items-center gap-2">
+                <Search className="w-5 h-5" />
+                Web Search
+              </h3>
+              <button
+                onClick={() => setShowSearch(false)}
+                className="p-1 hover:bg-cyber-accent/20 rounded"
+              >
+                <X className="w-5 h-5 text-slate-400" />
+              </button>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              if (searchQuery.trim()) {
+                websocket.webSearch(searchQuery.trim())
+                setShowSearch(false)
+                setSearchQuery('')
+              }
+            }}>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="What do you want to search for?"
+                autoFocus
+                className="w-full px-4 py-3 rounded-lg bg-cyber-darker border border-cyber-accent/30
+                           text-slate-200 placeholder-slate-500 font-body
+                           focus:outline-none focus:border-cyber-accent mb-4"
+              />
+              
+              <div className="flex gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowSearch(false)}
+                  className="flex-1 px-4 py-2 rounded-lg border border-slate-600 text-slate-400
+                             hover:border-slate-500 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={!searchQuery.trim()}
+                  className="flex-1 px-4 py-2 rounded-lg bg-blue-500/20 border border-blue-500/50
+                             text-blue-400 hover:bg-blue-500/30 transition-colors
+                             disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <Search className="w-4 h-4" />
+                  Search
+                </button>
+              </div>
+            </form>
+            
+            <p className="text-xs text-slate-500 mt-4 text-center">
+              {settings.assistant_nickname} will search the web and summarize results for you
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Microphone Error */}
       {micError && (
@@ -314,8 +436,11 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
       {/* Instructions */}
       <p className="text-sm text-slate-500 text-center">
         {settings.activation_mode === 'push-to-talk' 
-          ? 'Click the microphone to start/stop recording'
+          ? 'Hold Space or click mic to record'
           : 'Start speaking when ready'}
+        {(conversationState === 'speaking' || conversationState === 'processing') && (
+          <span className="block mt-1 text-slate-600">Press Escape to interrupt</span>
+        )}
       </p>
     </div>
   )

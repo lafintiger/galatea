@@ -17,7 +17,10 @@ class UserSettings(BaseModel):
     theme: str = "futuristic-dark"
     language: str = "en"
     
-    # Voice tuning for more natural/expressive speech
+    # TTS Provider: "piper" (fast, CPU) or "kokoro" (high quality, GPU)
+    tts_provider: Literal["piper", "kokoro"] = "piper"
+    
+    # Voice tuning for more natural/expressive speech (Piper-specific)
     voice_speed: float = 1.0  # length_scale: 0.5-2.0 (lower=faster, higher=slower)
     voice_variation: float = 0.8  # noise_scale: 0-1 (higher=more expressive)
     voice_phoneme_var: float = 0.6  # noise_w: 0-1 (higher=more natural timing)
