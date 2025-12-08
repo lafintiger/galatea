@@ -127,54 +127,55 @@ class WebSearchService:
         
         Args:
             query: Search query
-            provider: Which search provider to use ("auto" prefers SearXNG for reliability)
-            num_results: Number of results (for SearXNG)
+            provider: Which search provider to use ("auto" prefers Perplexica for quality)
+            num_results: Number of results (for SearXNG fallback)
             
         Returns:
             Dict with 'results' and optionally 'summary'
         """
-        # For "auto" mode, prefer SearXNG (more reliable), use Perplexica only if explicitly requested
-        if provider == "perplexica":
-            if await self.is_perplexica_available():
-                data = await self.search_perplexica(query)
-                if data.get("sources") or data.get("answer"):
+        # Try Perplexica first if available (better AI summaries)
+        if provider in ["perplexica", "auto"]:
+            try:
+                if await self.is_perplexica_available():
+                    print(f"🔍 Trying Perplexica for search: {query}")
+                    data = await self.search_perplexica(query)
+                    if data.get("sources") or data.get("answer"):
+                        print(f"✅ Perplexica returned results")
+                        return {
+                            "provider": "perplexica",
+                            "query": query,
+                            "summary": data.get("answer", ""),
+                            "results": data.get("sources", [])
+                        }
+                    print("⚠️ Perplexica returned no results, trying SearXNG...")
+            except Exception as e:
+                print(f"⚠️ Perplexica error: {e}, trying SearXNG...")
+        
+        # Use SearXNG (reliable fallback)
+        try:
+            if await self.is_searxng_available():
+                print(f"🔍 Using SearXNG for search: {query}")
+                results = await self.search_searxng(query, num_results)
+                if results:
+                    print(f"✅ SearXNG returned {len(results)} results")
                     return {
-                        "provider": "perplexica",
+                        "provider": "searxng",
                         "query": query,
-                        "summary": data.get("answer", ""),
-                        "results": data.get("sources", [])
+                        "summary": "",  # LLM will summarize
+                        "results": [r.to_dict() for r in results]
                     }
-            # Fallback to SearXNG if Perplexica fails
-            print("⚠️ Perplexica failed, falling back to SearXNG")
-        
-        # Default: Use SearXNG (fast and reliable)
-        if await self.is_searxng_available():
-            results = await self.search_searxng(query, num_results)
-            if results:
-                return {
-                    "provider": "searxng",
-                    "query": query,
-                    "summary": "",  # Will be summarized by LLM in conversation
-                    "results": [r.to_dict() for r in results]
-                }
-        
-        # Last resort: Try Perplexica if SearXNG also failed
-        if await self.is_perplexica_available():
-            data = await self.search_perplexica(query)
-            return {
-                "provider": "perplexica",
-                "query": query,
-                "summary": data.get("answer", ""),
-                "results": data.get("sources", [])
-            }
+                print("⚠️ SearXNG returned no results")
+        except Exception as e:
+            print(f"❌ SearXNG error: {e}")
         
         # Both failed
+        print("❌ No search services returned results")
         return {
             "provider": "none",
             "query": query,
             "summary": "",
             "results": [],
-            "error": "No search services available"
+            "error": "Search services failed to return results"
         }
     
     async def is_searxng_available(self) -> bool:
@@ -214,22 +215,38 @@ class WebSearchService:
         if not search_data.get("results"):
             return f"No search results found for: {search_data.get('query', 'unknown query')}"
         
-        lines = [f"Web search results for: \"{search_data['query']}\"", ""]
+        lines = []
         
-        # If Perplexica provided a summary, include it
+        # If Perplexica provided a summary, use it directly
         if search_data.get("summary"):
-            lines.append("AI Summary:")
+            lines.append("=== WEB SEARCH RESULTS ===")
+            lines.append(f"Query: {search_data['query']}")
+            lines.append("")
+            lines.append("Summary from search:")
             lines.append(search_data["summary"])
             lines.append("")
-            lines.append("Sources:")
-        
-        # Add individual results
-        for i, result in enumerate(search_data["results"], 1):
-            lines.append(f"{i}. {result['title']}")
-            lines.append(f"   URL: {result['url']}")
-            if result.get("snippet"):
-                lines.append(f"   {result['snippet'][:150]}...")
+            lines.append("Sources used:")
+            for result in search_data["results"][:3]:
+                lines.append(f"- {result['title']} ({result['url']})")
+        else:
+            # SearXNG results - need to be summarized by LLM
+            lines.append("=== WEB SEARCH RESULTS ===")
+            lines.append(f"Query: {search_data['query']}")
             lines.append("")
+            lines.append("IMPORTANT: Extract specific facts and numbers from these results to answer the user's question accurately:")
+            lines.append("")
+            
+            for i, result in enumerate(search_data["results"], 1):
+                lines.append(f"SOURCE {i}: {result['title']}")
+                if result.get("snippet"):
+                    # Include more of the snippet for better context
+                    lines.append(f"Content: {result['snippet'][:300]}")
+                lines.append(f"URL: {result['url']}")
+                lines.append("")
+            
+            lines.append("=== END SEARCH RESULTS ===")
+            lines.append("")
+            lines.append("Based on the search results above, provide a helpful, accurate answer with specific details and numbers. Cite sources where appropriate.")
         
         return "\n".join(lines)
 
