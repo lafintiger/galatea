@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     perplexica_port: int = 3000
     # Perplexica provider ID for Ollama (get from Perplexica config.json)
     perplexica_ollama_provider_id: str = "ff71bfa7-4d8d-45c2-8e70-a6232e437a5f"
+    perplexica_chat_model: str = "ministral-3:3b"  # Fast non-thinking model for search
+    perplexica_embedding_model: str = "bge-m3:latest"  # Embedding model for search
     
     # Database
     database_url: str = "sqlite+aiosqlite:///./data/galatea.db"

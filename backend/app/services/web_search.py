@@ -83,16 +83,17 @@ class WebSearchService:
             Dict with 'answer' (AI summary) and 'sources' (list of sources)
         """
         try:
-            # Perplexica API format - provider must be the UUID from config.json
+            # Perplexica API format per docs: https://github.com/ItzCrazyKns/Perplexica/blob/master/docs/API/SEARCH.md
+            # Must use "providerId" and "key" (not "provider" and "model")
             provider_id = settings.perplexica_ollama_provider_id
             request_body = {
                 "chatModel": {
-                    "provider": provider_id,
-                    "model": settings.default_model,
+                    "providerId": provider_id,
+                    "key": settings.perplexica_chat_model,  # Fast non-thinking model for search
                 },
                 "embeddingModel": {
-                    "provider": provider_id,
-                    "model": "bge-m3",  # Use same embedding model as RAG
+                    "providerId": provider_id,
+                    "key": settings.perplexica_embedding_model,  # Embedding model for search
                 },
                 "optimizationMode": optimization_mode,
                 "focusMode": focus_mode,
