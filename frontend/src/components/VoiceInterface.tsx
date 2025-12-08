@@ -3,6 +3,7 @@ import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import { useAudioRecorder } from '../hooks/useAudioRecorder'
 import { AudioVisualizer } from './AudioVisualizer'
+import { VisionCapture } from './VisionCapture'
 import { Mic, MicOff, Square, Send, AlertCircle, Radio, Search, X, Brain, Eye, EyeOff } from 'lucide-react'
 
 interface VoiceInterfaceProps {
@@ -11,11 +12,12 @@ interface VoiceInterfaceProps {
     sendText: (text: string) => void
     interrupt: () => void
     webSearch: (query: string, followUp?: string, provider?: 'auto' | 'searxng' | 'perplexica') => void
+    analyzeImage: (imageBase64: string, prompt: string) => void
   }
 }
 
 export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
-  const { conversationState, currentResponse, searchQuery, statusDetail, thinkingContent } = useConversationStore()
+  const { conversationState, currentResponse, searchQuery, statusDetail, thinkingContent, isAnalyzingImage } = useConversationStore()
   const { settings } = useSettingsStore()
   const [showThinking, setShowThinking] = useState(false)
   const { isRecording, isListening, startRecording, stopRecording, startVAD, stopVAD, audioLevel } = useAudioRecorder()
@@ -382,6 +384,10 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
         >
           <Search className="w-5 h-5 text-blue-400" />
         </button>
+        <VisionCapture 
+          onAnalyze={websocket.analyzeImage}
+          isAnalyzing={isAnalyzingImage}
+        />
         <button
           type="submit"
           disabled={!textInput.trim() || conversationState !== 'idle'}

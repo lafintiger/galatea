@@ -22,6 +22,8 @@ export function useWebSocket() {
     clearThinkingContent,
     setStatusDetail,
     setSearchResults,
+    setIsAnalyzingImage,
+    setVisionResult,
   } = useConversationStore()
   
   const { setSettings, setModels, setVoices } = useSettingsStore()
@@ -356,6 +358,56 @@ export function useWebSocket() {
     setConversationState('processing')
   }, [setConversationState])
 
+  const analyzeImage = useCallback(async (imageBase64: string, prompt: string) => {
+    setIsAnalyzingImage(true)
+    setStatusDetail(`Analyzing image...`)
+    
+    try {
+      const response = await fetch('/api/vision/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: imageBase64, prompt })
+      })
+      
+      const result = await response.json()
+      
+      if (result.success) {
+        setVisionResult({ description: result.description, model: result.model_used })
+        
+        // Add to conversation as an assistant message
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'user',
+          content: `[Shared an image] ${prompt}`,
+          timestamp: new Date(),
+        })
+        
+        addMessage({
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: result.description,
+          timestamp: new Date(),
+        })
+        
+        // Optionally speak the result via WebSocket
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(JSON.stringify({
+            type: 'speak_text',
+            text: result.description
+          }))
+        }
+      } else {
+        setError(result.error || 'Vision analysis failed')
+      }
+    } catch (e) {
+      console.error('Vision analysis error:', e)
+      setError('Failed to analyze image')
+    } finally {
+      setIsAnalyzingImage(false)
+      setStatusDetail(null)
+    }
+  }, [setIsAnalyzingImage, setVisionResult, setStatusDetail, setError, addMessage])
+
   const clearHistory = useCallback(() => {
     if (wsRef.current?.readyState !== WebSocket.OPEN) return
     
@@ -408,6 +460,7 @@ export function useWebSocket() {
     updateSettings,
     clearHistory,
     webSearch,
+    analyzeImage,
   }
 }
 

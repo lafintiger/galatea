@@ -41,6 +41,10 @@ interface ConversationStoreState {
   // Search results display
   searchResults: SearchResults | null  // Latest search results to display
   
+  // Vision analysis
+  isAnalyzingImage: boolean
+  visionResult: { description: string; model: string } | null
+  
   setConnectionStatus: (status: ConnectionStatus) => void
   setConversationState: (state: ConversationState) => void
   addMessage: (message: Message) => void
@@ -63,6 +67,10 @@ interface ConversationStoreState {
   // Search results actions
   setSearchResults: (results: SearchResults | null) => void
   clearSearchResults: () => void
+  
+  // Vision actions
+  setIsAnalyzingImage: (analyzing: boolean) => void
+  setVisionResult: (result: { description: string; model: string } | null) => void
 }
 
 export const useConversationStore = create<ConversationStoreState>((set) => ({
@@ -81,6 +89,10 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   
   // Search results
   searchResults: null,
+  
+  // Vision
+  isAnalyzingImage: false,
+  visionResult: null,
   
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
   
@@ -173,6 +185,10 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   // Search results actions
   setSearchResults: (searchResults) => set({ searchResults }),
   clearSearchResults: () => set({ searchResults: null }),
+  
+  // Vision actions
+  setIsAnalyzingImage: (isAnalyzingImage) => set({ isAnalyzingImage }),
+  setVisionResult: (visionResult) => set({ visionResult }),
 }))
 
 

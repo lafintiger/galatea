@@ -5,7 +5,7 @@ import json
 import re
 from datetime import datetime
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -463,6 +463,47 @@ async def rag_search(query: str, limit: int = 5):
         )
 
 
+# ============== Vision Endpoints ==============
+
+from .services.vision import vision_service
+
+@app.post("/api/vision/analyze")
+async def analyze_image(
+    image: str = Body(..., description="Base64-encoded image"),
+    prompt: str = Body("Describe this image in detail.", description="What to analyze"),
+    model_type: str = Body(None, description="Force model: general, ocr, or uncensored")
+):
+    """Analyze an image using vision models.
+    
+    Automatically selects the best model based on prompt:
+    - 'general' (granite): Fast, general purpose
+    - 'ocr' (deepseek): Text extraction
+    - 'uncensored' (qwen-vl): For blocked content
+    """
+    try:
+        result = await vision_service.analyze_image(
+            image_base64=image,
+            prompt=prompt,
+            model_type=model_type
+        )
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.get("/api/vision/models")
+async def get_vision_models():
+    """Check which vision models are available."""
+    available = await vision_service.check_models_available()
+    return {
+        "models": vision_service.models,
+        "available": available
+    }
+
+
 # ============== WebSocket Handler ==============
 
 class ConversationState:
@@ -532,6 +573,14 @@ async def websocket_endpoint(websocket: WebSocket):
                 # Clear conversation history
                 state.messages = []
                 await websocket.send_json({"type": "history_cleared"})
+            
+            elif msg_type == "speak_text":
+                # Speak arbitrary text (used for vision results, etc.)
+                text = data.get("text", "")
+                if text:
+                    await websocket.send_json({"type": "status", "state": "speaking"})
+                    await speak_response(websocket, state, text, user_settings)
+                    await websocket.send_json({"type": "status", "state": "idle"})
     
     except WebSocketDisconnect:
         print(f"🔌 Client disconnected")
