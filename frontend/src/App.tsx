@@ -5,14 +5,16 @@ import { Transcript } from './components/Transcript'
 import { StatusBar } from './components/StatusBar'
 import { HistoryPanel } from './components/HistoryPanel'
 import { SearchResultsPanel } from './components/SearchResultsPanel'
+import { OnboardingPanel } from './components/OnboardingPanel'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useSettingsStore } from './stores/settingsStore'
 import { useConversationStore } from './stores/conversationStore'
-import { Settings as SettingsIcon, Clock } from 'lucide-react'
+import { Settings as SettingsIcon, Clock, User } from 'lucide-react'
 
 function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const { settings } = useSettingsStore()
   const { searchResults } = useConversationStore()
   const websocket = useWebSocket()
@@ -46,6 +48,13 @@ function App() {
         </div>
         
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowOnboarding(true)}
+            className="p-2 rounded-lg border border-cyber-accent/30 hover:border-cyber-accent hover:bg-cyber-accent/10 transition-all"
+            title="Profile & Onboarding"
+          >
+            <User className="w-5 h-5 text-cyber-accent" />
+          </button>
           <button
             onClick={handleShowHistory}
             className={`p-2 rounded-lg border transition-all
@@ -120,6 +129,12 @@ function App() {
 
       {/* Status Bar */}
       <StatusBar />
+
+      {/* Onboarding Panel (Modal) */}
+      <OnboardingPanel 
+        isOpen={showOnboarding} 
+        onClose={() => setShowOnboarding(false)} 
+      />
     </div>
   )
 }

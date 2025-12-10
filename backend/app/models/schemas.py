@@ -8,7 +8,7 @@ class UserSettings(BaseModel):
     """User settings schema"""
     assistant_name: str = "Galatea"
     assistant_nickname: str = "Gala"
-    selected_model: str = "huihui_ai/qwen3-abliterated:8b"
+    selected_model: str = "ministral-3:8b"
     selected_voice: str = "en_US-lessac-high"  # High quality for more natural sound
     response_style: Literal["concise", "conversational"] = "conversational"
     activation_mode: Literal["push-to-talk", "vad", "wake-word"] = "push-to-talk"

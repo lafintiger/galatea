@@ -139,7 +139,8 @@ galatea/
 │   │   │   ├── settings_manager.py  # User settings persistence
 │   │   │   ├── embedding.py     # LanceDB vector embeddings via Ollama
 │   │   │   ├── model_manager.py # Ollama model load/unload for VRAM
-│   │   │   └── background_worker.py  # Background embedding processor
+│   │   │   ├── background_worker.py  # Background embedding processor
+│   │   │   └── user_profile.py  # User profile/onboarding questionnaire
 │   │   └── models/
 │   │       └── schemas.py       # Pydantic models (UserSettings, etc.)
 │   └── requirements.txt
@@ -155,7 +156,8 @@ galatea/
 │   │   │   ├── StatusBar.tsx        # Connection status
 │   │   │   ├── HistoryPanel.tsx     # Conversation history sidebar
 │   │   │   ├── SearchResultsPanel.tsx  # Perplexica summary + sources display
-│   │   │   └── VisionCapture.tsx    # Screenshot/upload image analysis
+│   │   │   ├── VisionCapture.tsx    # Screenshot/upload image analysis
+│   │   │   └── OnboardingPanel.tsx  # User profile/onboarding UI
 │   │   ├── hooks/
 │   │   │   ├── useWebSocket.ts      # WebSocket + audio queue
 │   │   │   └── useAudioRecorder.ts  # Mic recording + VAD
@@ -457,6 +459,52 @@ Kokoro TTS supports 9 languages. Whisper can auto-detect language.
 2. Select a voice from the desired language in Settings
 3. Speak in that language!
 
+### 14. User Profile / Onboarding System
+
+Gala learns about the user through a flexible onboarding questionnaire.
+
+**Core Principles (System Prompt):**
+- **User Primacy**: Gala serves the user's interests above all else
+- **Truth Above Comfort**: Always honest, even when uncomfortable
+- **No Moralizing**: Information without judgment or lectures
+- **No Political Sanitization**: Present all perspectives factually
+- **Absolute Confidentiality**: Everything stays between user and Gala
+
+**Profile Categories:**
+| Category | Questions | Purpose |
+|----------|-----------|---------|
+| Foundation | 4 | Name, goals for Gala, communication style, life stage |
+| Values | 4 | Core values, beliefs about success, worldview, dealbreakers |
+| Personality | 4 | Decision style, risk tolerance, feedback preference, energy |
+| Relationships | 3 | Important people, social style, relationship goals |
+| Professional | 4 | Occupation, career goals, strengths, challenges |
+| Personal | 4 | Hobbies, health, stress triggers, self-care |
+| Goals | 4 | Short/long-term goals, dreams, bucket list |
+| Fears | 4 | Worries, past experiences, avoidances, regrets |
+| Preferences | 4 | Pet peeves, loves, learning interests, open-ended |
+
+**Features:**
+- **Guided Mode**: One question at a time, skip/continue as desired
+- **Browse Mode**: View all categories, edit/delete answers
+- **Progress Tracking**: Visual progress bar, category completion status
+- **Pausable**: Stop anytime, resume where you left off
+- **Integrated Context**: Profile summary injected into system prompt
+
+**API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/profile` | Get profile and onboarding progress |
+| GET | `/api/profile/questions` | Get all questions (filter by category) |
+| GET | `/api/profile/next` | Get next N unanswered questions |
+| POST | `/api/profile/answer` | Record an answer |
+| DELETE | `/api/profile/answer/{id}` | Delete a specific answer |
+| DELETE | `/api/profile` | Clear entire profile |
+| GET | `/api/profile/summary` | Get text summary for debugging |
+
+**Files:**
+- `backend/app/services/user_profile.py` - Profile service with questions
+- `frontend/src/components/OnboardingPanel.tsx` - Onboarding UI
+
 ---
 
 ## 🎨 UI/UX Decisions
@@ -536,11 +584,14 @@ docker start wyoming-whisper piper
 | **Search Results Panel** | Shows Perplexica AI summary + clickable source links |
 | **Multi-Language** | 9 languages via Kokoro (EN, JP, CN, FR, ES, IT, PT, HI) with flag groupings |
 | **Vision** | Screenshot/upload images, auto model selection (granite/deepseek-ocr/qwen-vl) |
+| **Truth-Seeking System Prompt** | User-primacy, no moralizing, no political sanitization, full transparency |
+| **User Profile / Onboarding** | 30+ questions across 9 categories, pausable, builds personalized context |
 
 ### 📋 Phase 5: Future Features
 
 | Feature | Description | Complexity |
 |---------|-------------|------------|
+| **Encryption at Rest** | Password-protected profile data, LanceDB, and conversations using Fernet/Argon2 | Medium |
 | **Save Search to RAG** | Store search results in knowledge base for future reference | Low |
 | **Multiple Personas** | Switch between Gala "personalities" | Medium |
 | **Tool Calling** | File ops, code execution, smart home | High |
@@ -592,8 +643,8 @@ docker start wyoming-whisper piper
 
 ---
 
-*Last updated: December 8, 2024*
-*Phase: 4 (Vision + Multi-Language)*
+*Last updated: December 10, 2024*
+*Phase: 4 (User Profile + Truth-Seeking Prompt)*
 *Repository: https://github.com/lafintiger/galatea*
 
 

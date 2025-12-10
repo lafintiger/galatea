@@ -256,3 +256,4 @@ export function VisionCapture({ onAnalyze, isAnalyzing }: VisionCaptureProps) {
   )
 }
 
+

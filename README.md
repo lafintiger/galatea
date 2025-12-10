@@ -251,7 +251,7 @@ Create a `.env` file in the `backend` directory:
 
 ```env
 OLLAMA_HOST=http://localhost:11434
-DEFAULT_MODEL=huihui_ai/qwen3-abliterated:8b
+DEFAULT_MODEL=ministral-3:8b
 WHISPER_HOST=localhost
 WHISPER_PORT=10300
 PIPER_HOST=localhost

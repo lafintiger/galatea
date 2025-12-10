@@ -19,6 +19,7 @@ from .services.web_search import web_search
 from .services.embedding import embedding_service
 from .services.model_manager import model_manager
 from .services.background_worker import background_worker
+from .services.user_profile import user_profile_service
 from .models.schemas import UserSettings
 
 
@@ -463,6 +464,144 @@ async def rag_search(query: str, limit: int = 5):
         )
 
 
+# ============== User Profile / Onboarding Endpoints ==============
+
+@app.get("/api/profile")
+async def get_profile():
+    """Get the user's profile and onboarding status"""
+    profile = user_profile_service.load_profile()
+    progress = user_profile_service.get_progress()
+    
+    return {
+        "profile": {
+            "user_name": profile.user_name,
+            "onboarding_started": profile.onboarding_started.isoformat() if profile.onboarding_started else None,
+            "onboarding_completed": profile.onboarding_completed,
+            "last_updated": profile.last_updated.isoformat() if profile.last_updated else None,
+            "answers": [
+                {
+                    "question_id": a.question_id,
+                    "question": a.question,
+                    "answer": a.answer,
+                    "category": a.category,
+                    "answered_at": a.answered_at.isoformat()
+                }
+                for a in profile.answers
+            ]
+        },
+        "progress": progress
+    }
+
+
+@app.get("/api/profile/questions")
+async def get_profile_questions(category: str = None, unanswered_only: bool = False):
+    """Get profile questions
+    
+    Args:
+        category: Filter by category (optional)
+        unanswered_only: Only return unanswered questions
+    """
+    if unanswered_only:
+        questions = user_profile_service.get_unanswered_questions()
+    elif category:
+        questions = user_profile_service.get_questions_by_category(category)
+    else:
+        questions = user_profile_service.questions
+    
+    return {
+        "questions": [q.model_dump() for q in questions],
+        "categories": user_profile_service.get_categories(),
+        "total": len(questions)
+    }
+
+
+@app.get("/api/profile/next")
+async def get_next_questions(count: int = 1):
+    """Get the next N questions to ask in onboarding
+    
+    Args:
+        count: Number of questions to return (default 1)
+    """
+    questions = user_profile_service.get_next_questions(count)
+    progress = user_profile_service.get_progress()
+    
+    return {
+        "questions": [q.model_dump() for q in questions],
+        "progress": progress,
+        "is_complete": progress["is_complete"]
+    }
+
+
+@app.post("/api/profile/answer")
+async def record_profile_answer(data: dict):
+    """Record an answer to a profile question
+    
+    Body: { question_id: string, answer: string }
+    """
+    try:
+        question_id = data.get("question_id")
+        answer = data.get("answer")
+        
+        if not question_id or not answer:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Both question_id and answer are required"}
+            )
+        
+        profile_answer = user_profile_service.record_answer(question_id, answer)
+        progress = user_profile_service.get_progress()
+        next_questions = user_profile_service.get_next_questions(1)
+        
+        return {
+            "success": True,
+            "answer": {
+                "question_id": profile_answer.question_id,
+                "answer": profile_answer.answer,
+                "answered_at": profile_answer.answered_at.isoformat()
+            },
+            "progress": progress,
+            "next_question": next_questions[0].model_dump() if next_questions else None
+        }
+    except ValueError as e:
+        return JSONResponse(
+            status_code=400,
+            content={"error": str(e)}
+        )
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.delete("/api/profile/answer/{question_id}")
+async def delete_profile_answer(question_id: str):
+    """Delete a specific answer"""
+    success = user_profile_service.delete_answer(question_id)
+    
+    if success:
+        return {"success": True, "message": f"Deleted answer for {question_id}"}
+    else:
+        return JSONResponse(
+            status_code=404,
+            content={"error": f"No answer found for question {question_id}"}
+        )
+
+
+@app.delete("/api/profile")
+async def clear_profile():
+    """Clear the entire user profile and start fresh"""
+    user_profile_service.clear_profile()
+    return {"success": True, "message": "Profile cleared"}
+
+
+@app.get("/api/profile/summary")
+async def get_profile_summary():
+    """Get a text summary of the profile (for debugging/display)"""
+    summary = user_profile_service.get_profile_summary()
+    return {"summary": summary}
+
+
 # ============== Vision Endpoints ==============
 
 from .services.vision import vision_service
@@ -905,13 +1044,19 @@ async def generate_response(
     """Generate LLM response and TTS"""
     state.should_interrupt = False
     
-    # Build system prompt with rich time context
+    # Get user profile summary
+    user_profile_summary = user_profile_service.get_profile_summary()
+    user_name = user_profile_service.load_profile().user_name or "User"
+    
+    # Build system prompt with rich time context and user profile
     time_context = get_time_context()
     system_prompt = ollama_service.build_system_prompt(
         assistant_name=user_settings.assistant_name,
         nickname=user_settings.assistant_nickname,
         response_style=user_settings.response_style,
+        user_name=user_name,
         time_context=time_context,
+        user_profile=user_profile_summary if user_profile_summary else None,
     )
     
     # Try to get relevant context from RAG (if embeddings exist)
