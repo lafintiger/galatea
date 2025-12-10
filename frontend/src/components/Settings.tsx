@@ -529,72 +529,139 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             ))}
           </div>
           
-          {/* Voice Tuning - Only show for Piper */}
-          {settings.tts_provider === 'piper' && (
-            <div className="mt-4 pt-4 border-t border-cyber-accent/20">
-              <p className="text-xs text-slate-500 mb-3">Voice Tuning (Piper only):</p>
-              
-              <div className="space-y-3">
-                {/* Speed */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">Speed</span>
-                    <span className="text-cyber-accent">{settings.voice_speed?.toFixed(1) || '1.0'}x</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2.0"
-                    step="0.1"
-                    value={settings.voice_speed || 1.0}
-                    onChange={(e) => handleSettingChange('voice_speed', parseFloat(e.target.value))}
-                    className="w-full h-1 rounded-lg appearance-none cursor-pointer
-                               bg-cyber-dark accent-cyber-accent"
-                  />
+          {/* Voice Tuning */}
+          <div className="mt-4 pt-4 border-t border-cyber-accent/20">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs text-slate-500">Voice Tuning:</p>
+              {/* Preset Buttons */}
+              <div className="flex gap-1">
+                <button
+                  onClick={() => {
+                    handleSettingChange('voice_speed', 1.0)
+                    if (settings.tts_provider === 'piper') {
+                      handleSettingChange('voice_variation', 0.8)
+                      handleSettingChange('voice_phoneme_var', 0.6)
+                    }
+                  }}
+                  className="px-2 py-0.5 text-xs rounded bg-cyber-accent/10 text-cyber-accent 
+                             hover:bg-cyber-accent/20 border border-cyber-accent/30 transition-all"
+                  title="Natural, conversational tone"
+                >
+                  Natural
+                </button>
+                <button
+                  onClick={() => {
+                    handleSettingChange('voice_speed', 1.1)
+                    if (settings.tts_provider === 'piper') {
+                      handleSettingChange('voice_variation', 0.5)
+                      handleSettingChange('voice_phoneme_var', 0.4)
+                    }
+                  }}
+                  className="px-2 py-0.5 text-xs rounded bg-cyber-purple/10 text-cyber-purple 
+                             hover:bg-cyber-purple/20 border border-cyber-purple/30 transition-all"
+                  title="Clear and professional tone"
+                >
+                  Clear
+                </button>
+                <button
+                  onClick={() => {
+                    handleSettingChange('voice_speed', 0.95)
+                    if (settings.tts_provider === 'piper') {
+                      handleSettingChange('voice_variation', 0.9)
+                      handleSettingChange('voice_phoneme_var', 0.7)
+                    }
+                  }}
+                  className="px-2 py-0.5 text-xs rounded bg-pink-500/10 text-pink-400 
+                             hover:bg-pink-500/20 border border-pink-500/30 transition-all"
+                  title="Warm, expressive tone"
+                >
+                  Warm
+                </button>
+              </div>
+            </div>
+            
+            <div className="space-y-3">
+              {/* Speed - Available for both */}
+              <div>
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-slate-400">Speed</span>
+                  <span className="text-cyber-accent">{settings.voice_speed?.toFixed(1) || '1.0'}x</span>
                 </div>
-                
-                {/* Expressiveness */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">Expressiveness</span>
-                    <span className="text-cyber-purple">{Math.round((settings.voice_variation || 0.8) * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={settings.voice_variation || 0.8}
-                    onChange={(e) => handleSettingChange('voice_variation', parseFloat(e.target.value))}
-                    className="w-full h-1 rounded-lg appearance-none cursor-pointer
-                               bg-cyber-dark accent-cyber-purple"
-                  />
-                </div>
-                
-                {/* Natural Timing */}
-                <div>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">Natural Timing</span>
-                    <span className="text-green-400">{Math.round((settings.voice_phoneme_var || 0.6) * 100)}%</span>
-                  </div>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={settings.voice_phoneme_var || 0.6}
-                    onChange={(e) => handleSettingChange('voice_phoneme_var', parseFloat(e.target.value))}
-                    className="w-full h-1 rounded-lg appearance-none cursor-pointer
-                               bg-cyber-dark accent-green-400"
-                  />
+                <input
+                  type="range"
+                  min="0.5"
+                  max="1.5"
+                  step="0.05"
+                  value={settings.voice_speed || 1.0}
+                  onChange={(e) => handleSettingChange('voice_speed', parseFloat(e.target.value))}
+                  className="w-full h-1 rounded-lg appearance-none cursor-pointer
+                             bg-cyber-dark accent-cyber-accent"
+                />
+                <div className="flex justify-between text-[10px] text-slate-600 mt-0.5">
+                  <span>Slower</span>
+                  <span>1.0 = Normal</span>
+                  <span>Faster</span>
                 </div>
               </div>
               
-              <p className="text-xs text-slate-600 mt-2 italic">
-                Higher expressiveness + timing = more conversational
-              </p>
+              {/* Piper-specific controls */}
+              {settings.tts_provider === 'piper' && (
+                <>
+                  {/* Expressiveness */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Expressiveness</span>
+                      <span className="text-cyber-purple">{Math.round((settings.voice_variation || 0.8) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.3"
+                      max="1"
+                      step="0.05"
+                      value={settings.voice_variation || 0.8}
+                      onChange={(e) => handleSettingChange('voice_variation', parseFloat(e.target.value))}
+                      className="w-full h-1 rounded-lg appearance-none cursor-pointer
+                                 bg-cyber-dark accent-cyber-purple"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-600 mt-0.5">
+                      <span>Monotone</span>
+                      <span>80% = Best</span>
+                      <span>Animated</span>
+                    </div>
+                  </div>
+                  
+                  {/* Natural Timing */}
+                  <div>
+                    <div className="flex justify-between text-xs mb-1">
+                      <span className="text-slate-400">Natural Timing</span>
+                      <span className="text-green-400">{Math.round((settings.voice_phoneme_var || 0.6) * 100)}%</span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.2"
+                      max="0.9"
+                      step="0.05"
+                      value={settings.voice_phoneme_var || 0.6}
+                      onChange={(e) => handleSettingChange('voice_phoneme_var', parseFloat(e.target.value))}
+                      className="w-full h-1 rounded-lg appearance-none cursor-pointer
+                                 bg-cyber-dark accent-green-400"
+                    />
+                    <div className="flex justify-between text-[10px] text-slate-600 mt-0.5">
+                      <span>Robotic</span>
+                      <span>60% = Best</span>
+                      <span>Natural</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          )}
+            
+            <p className="text-xs text-slate-600 mt-2 italic">
+              {settings.tts_provider === 'piper' 
+                ? '💡 "Natural" preset: Speed 1.0, Expression 80%, Timing 60%'
+                : '💡 Kokoro voices are pre-tuned for natural speech'}
+            </p>
+          </div>
         </section>
 
         {/* Response Style */}
