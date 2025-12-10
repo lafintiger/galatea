@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     
     # Ollama
     ollama_base_url: str = "http://localhost:11434"
-    default_model: str = "ministral-3:8b"
+    default_model: str = "ministral-3:latest"
     
     # Wyoming Whisper (STT)
     whisper_host: str = "localhost"

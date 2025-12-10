@@ -86,6 +86,23 @@ def clean_for_speech(text: str) -> str:
     return text
 
 
+async def warmup_model(model_name: str):
+    """Pre-load the LLM model into VRAM for instant responses"""
+    print(f"   🔥 Warming up model: {model_name}")
+    try:
+        # Use model_manager to load the model (handles VRAM properly)
+        success = await model_manager.load_model(model_name)
+        if success:
+            print(f"   ✅ Model {model_name} is ready!")
+        else:
+            print(f"   ⚠️ Model warmup completed (may not be loaded)")
+        return success
+    except Exception as e:
+        print(f"   ⚠️ Model warmup failed: {e}")
+        print(f"   (First message may have a delay while model loads)")
+        return False
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
@@ -95,8 +112,13 @@ async def lifespan(app: FastAPI):
     print(f"   Piper: {settings.piper_host}:{settings.piper_port}")
     print(f"   LanceDB: {embedding_service.db_path}")
     
-    # Start background embedding worker
+    # Load user settings
     user_settings = settings_manager.load()
+    
+    # Pre-load the LLM model for instant first response
+    await warmup_model(user_settings.selected_model)
+    
+    # Start background embedding worker
     background_worker.start(user_settings.selected_model)
     
     yield

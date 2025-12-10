@@ -59,14 +59,16 @@ class ModelManager:
         async with httpx.AsyncClient() as client:
             try:
                 # Ollama loads via generate with empty prompt
+                # stream: false for simpler handling
                 response = await client.post(
                     f"{self.ollama_url}/api/generate",
                     json={
                         "model": model_name,
-                        "prompt": "",
-                        "keep_alive": "5m"  # Keep loaded for 5 minutes
+                        "prompt": "hi",  # Minimal prompt to trigger load
+                        "stream": False,
+                        "keep_alive": "10m"  # Keep loaded for 10 minutes
                     },
-                    timeout=120.0  # Loading can take time
+                    timeout=180.0  # Loading can take time for large models
                 )
                 response.raise_for_status()
                 print(f"Loaded model: {model_name}")
