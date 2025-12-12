@@ -230,9 +230,9 @@ services:
       - ANALYZE_INTERVAL=${VISION_INTERVAL:-2.0}
       # Camera index (usually 0)
       - CAMERA_INDEX=${CAMERA_INDEX:-0}
-    # Webcam access (Linux)
-    devices:
-      - /dev/video0:/dev/video0
+    # Webcam access (Linux only - comment out on Windows/Mac)
+    # devices:
+    #   - /dev/video0:/dev/video0
     # GPU support - uncomment for NVIDIA GPU
     # deploy:
     #   resources:
