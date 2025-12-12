@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback } from 'react'
-import { Camera, Upload, X, Eye, Loader2, ImageIcon } from 'lucide-react'
+import { Camera, Upload, X, Eye, Loader2 } from 'lucide-react'
 import { useSettingsStore } from '../stores/settingsStore'
 
 interface VisionCaptureProps {
@@ -20,7 +20,6 @@ export function VisionCapture({ onAnalyze, isAnalyzing }: VisionCaptureProps) {
 
     const reader = new FileReader()
     reader.onload = () => {
-      const base64 = (reader.result as string).split(',')[1]
       setPreviewImage(reader.result as string)
     }
     reader.readAsDataURL(file)
@@ -255,5 +254,7 @@ export function VisionCapture({ onAnalyze, isAnalyzing }: VisionCaptureProps) {
     </>
   )
 }
+
+
 
 

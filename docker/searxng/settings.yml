@@ -1,0 +1,53 @@
+# SearXNG Configuration for Galatea
+# Private meta-search engine
+
+use_default_settings: true
+
+general:
+  instance_name: "Galatea Search"
+  debug: false
+  privacypolicy_url: false
+  contact_url: false
+
+search:
+  safe_search: 0
+  autocomplete: "google"
+  default_lang: "en"
+  formats:
+    - html
+    - json
+
+server:
+  secret_key: "galatea-searxng-secret-change-in-production"
+  limiter: false
+  image_proxy: true
+  http_protocol_version: "1.1"
+
+ui:
+  static_use_hash: true
+  default_theme: simple
+  theme_args:
+    simple_style: dark
+
+# Enable JSON output for API access
+enabled_plugins:
+  - 'Hash plugin'
+  - 'Search on category select'
+  - 'Self Information'
+  - 'Tracker URL remover'
+  - 'Open Access DOI rewrite'
+
+outgoing:
+  request_timeout: 3.0
+  max_request_timeout: 10.0
+
+engines:
+  - name: google
+    disabled: false
+  - name: bing
+    disabled: false
+  - name: duckduckgo
+    disabled: false
+  - name: wikipedia
+    disabled: false
+

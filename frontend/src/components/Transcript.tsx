@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
-import { useSettingsStore } from '../stores/settingsStore'
 import { User, Bot, Trash2, Download, ChevronDown } from 'lucide-react'
 
 interface TranscriptProps {
@@ -9,7 +8,6 @@ interface TranscriptProps {
 
 export function Transcript({ onClear }: TranscriptProps) {
   const { messages, currentTranscript, currentResponse, clearMessages, exportConversation } = useConversationStore()
-  const { settings } = useSettingsStore()
   const scrollRef = useRef<HTMLDivElement>(null)
   const [showExportMenu, setShowExportMenu] = useState(false)
 

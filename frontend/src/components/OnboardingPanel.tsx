@@ -189,8 +189,6 @@ export function OnboardingPanel({ isOpen, onClose }: OnboardingPanelProps) {
 
   if (!isOpen) return null;
 
-  const answeredIds = new Set(allAnswers.map(a => a.question_id));
-
   return (
     <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-gray-900 border border-cyan-500/30 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
@@ -440,4 +438,6 @@ export function OnboardingPanel({ isOpen, onClose }: OnboardingPanelProps) {
     </div>
   );
 }
+
+
 

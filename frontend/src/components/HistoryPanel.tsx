@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
-import { X, Clock, Trash2, Save, FolderOpen, Edit2, Check, MessageSquare } from 'lucide-react'
+import { X, Clock, Trash2, Save, Edit2, Check, MessageSquare } from 'lucide-react'
 
 interface ConversationSummary {
   id: string
@@ -312,5 +312,7 @@ export function HistoryPanel({ onClose }: HistoryPanelProps) {
     </div>
   )
 }
+
+
 
 

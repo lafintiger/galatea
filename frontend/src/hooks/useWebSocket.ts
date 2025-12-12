@@ -235,10 +235,7 @@ export function useWebSocket() {
           currentSourceRef.current = null
           resolve()
         }
-        source.onerror = () => {
-          currentSourceRef.current = null
-          reject(new Error('Audio playback error'))
-        }
+        // Note: AudioBufferSourceNode doesn't have onerror, errors are caught in try/catch
         source.start()
       } catch (e) {
         reject(e)

@@ -53,7 +53,7 @@
 ┌─────────────────────────────────────────────────────────────────┐
 │                         BACKEND                                  │
 │  FastAPI + Python + WebSockets                                  │
-│  Port: 8000                                                     │
+│  Port: 8010                                                     │
 │                                                                  │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
 │  │ main.py     │  │ ollama.py   │  │  wyoming.py             │ │
@@ -538,7 +538,7 @@ Gala learns about the user through a flexible onboarding questionnaire.
 # Terminal 1: Backend
 cd backend
 .\venv\Scripts\activate  # Windows
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
 
 # Terminal 2: Frontend
 cd frontend

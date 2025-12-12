@@ -11,7 +11,7 @@ interface SettingsProps {
 }
 
 export function Settings({ websocket, onClose }: SettingsProps) {
-  const { settings, models, voices, piperVoices, kokoroVoices, updateSetting } = useSettingsStore()
+  const { settings, models, piperVoices, kokoroVoices, updateSetting } = useSettingsStore()
   const [isTestingVoice, setIsTestingVoice] = useState(false)
   const [testingVoiceId, setTestingVoiceId] = useState<string | null>(null)
   const [voiceTestError, setVoiceTestError] = useState<string | null>(null)

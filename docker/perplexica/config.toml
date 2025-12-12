@@ -1,0 +1,25 @@
+# Perplexica Configuration for Galatea
+# AI-powered research assistant
+
+[GENERAL]
+PORT = 3001
+SIMILARITY_MEASURE = "cosine"
+
+[API_KEYS]
+OPENAI = ""
+GROQ = ""
+ANTHROPIC = ""
+
+[API_ENDPOINTS]
+SEARXNG = "http://searxng:8080"
+OLLAMA = "http://ollama:11434"
+
+[MODELS]
+# Chat model for generating responses
+CHAT_MODEL_PROVIDER = "ollama"
+CHAT_MODEL = "ministral-3:3b"
+
+# Embedding model for semantic search
+EMBEDDING_MODEL_PROVIDER = "ollama"
+EMBEDDING_MODEL = "bge-m3:latest"
+

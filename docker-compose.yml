@@ -1,0 +1,232 @@
+# ============================================
+# Galatea - Your Local Vocal AI Suite
+# ============================================
+#
+# QUICK START (fresh install - everything):
+#   docker compose --profile full up
+#
+# EXISTING OLLAMA (native/metal):
+#   docker compose up
+#   (set OLLAMA_HOST in .env or environment)
+#
+# EXISTING PERPLEXICA/SEARXNG:
+#   docker compose --profile voice-only up
+#   (just Galatea + voice services)
+#
+# ============================================
+# Access Points:
+#   - Galatea:    http://localhost:5173
+#   - SearXNG:    http://localhost:4000
+#   - Perplexica: http://localhost:3000
+#   - Ollama API: http://localhost:11434
+# ============================================
+
+services:
+  # ============================================
+  # GALATEA - Voice AI Companion (Always starts)
+  # ============================================
+  
+  galatea-backend:
+    build: ./backend
+    container_name: galatea-backend
+    ports:
+      - "8010:8010"
+    environment:
+      # Ollama - defaults to Docker, override with OLLAMA_HOST env var
+      - OLLAMA_BASE_URL=${OLLAMA_HOST:-http://ollama:11434}
+      # Voice services
+      - WHISPER_HOST=whisper
+      - WHISPER_PORT=10300
+      - PIPER_HOST=piper
+      - PIPER_PORT=10200
+      - KOKORO_BASE_URL=http://kokoro:8880
+      # Search - defaults to Docker, override if using existing
+      - SEARXNG_HOST=${SEARXNG_HOST:-searxng}
+      - SEARXNG_PORT=${SEARXNG_PORT:-8080}
+      - PERPLEXICA_HOST=${PERPLEXICA_HOST:-perplexica-backend}
+      - PERPLEXICA_PORT=${PERPLEXICA_PORT:-3001}
+      - TTS_PROVIDER=${TTS_PROVIDER:-kokoro}
+    volumes:
+      - galatea-data:/app/data
+    depends_on:
+      - whisper
+      - piper
+      - kokoro
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  galatea-frontend:
+    build: ./frontend
+    container_name: galatea-frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - galatea-backend
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  # ============================================
+  # VOICE - Speech-to-Text & Text-to-Speech
+  # (Always needed for Galatea to work)
+  # ============================================
+  
+  whisper:
+    image: rhasspy/wyoming-whisper:latest
+    container_name: galatea-whisper
+    ports:
+      - "10300:10300"
+    command: --model small --language en
+    volumes:
+      - whisper-models:/data
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  piper:
+    image: lscr.io/linuxserver/piper:latest
+    container_name: galatea-piper
+    ports:
+      - "10200:10200"
+    environment:
+      - PUID=1000
+      - PGID=1000
+      - TZ=${TZ:-America/Los_Angeles}
+    volumes:
+      - piper-voices:/config
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  kokoro:
+    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
+    container_name: galatea-kokoro
+    ports:
+      - "8880:8880"
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  # ============================================
+  # OLLAMA - Local LLM (Optional - use profile)
+  # Skip if you have Ollama installed natively
+  # ============================================
+  
+  ollama:
+    image: ollama/ollama:latest
+    container_name: galatea-ollama
+    profiles: ["full", "with-ollama"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - galatea-network
+    # GPU support - uncomment for NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+  # Model initialization - pulls required models
+  ollama-init:
+    image: ollama/ollama:latest
+    container_name: galatea-ollama-init
+    profiles: ["full", "with-ollama"]
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "⏳ Waiting for Ollama to be ready..."
+        sleep 15
+        echo "📥 Pulling default models (this may take 5-10 minutes)..."
+        ollama pull ministral-3:3b
+        ollama pull bge-m3:latest
+        echo "✅ Models ready!"
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    networks:
+      - galatea-network
+    restart: "no"
+
+  # ============================================
+  # SEARCH - Private Web Search (Optional)
+  # Skip if you already have SearXNG running
+  # ============================================
+  
+  searxng:
+    image: searxng/searxng:latest
+    container_name: galatea-searxng
+    profiles: ["full", "with-search"]
+    ports:
+      - "4000:8080"
+    volumes:
+      - ./docker/searxng:/etc/searxng
+    environment:
+      - SEARXNG_BASE_URL=http://localhost:4000/
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  # ============================================
+  # PERPLEXICA - AI Research (Optional)
+  # Skip if you already have Perplexica running
+  # ============================================
+  
+  perplexica-backend:
+    image: itzcrazykns1/perplexica-backend:latest
+    container_name: galatea-perplexica-backend
+    profiles: ["full", "with-search"]
+    ports:
+      - "3001:3001"
+    volumes:
+      - ./docker/perplexica/config.toml:/home/perplexica/config.toml
+      - perplexica-data:/home/perplexica/data
+    depends_on:
+      - searxng
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  perplexica-frontend:
+    image: itzcrazykns1/perplexica-frontend:latest
+    container_name: galatea-perplexica-frontend
+    profiles: ["full", "with-search"]
+    ports:
+      - "3000:3000"
+    depends_on:
+      - perplexica-backend
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+# ============================================
+# VOLUMES - Persistent Storage
+# ============================================
+
+volumes:
+  galatea-data:
+    name: galatea-data
+  ollama-models:
+    name: galatea-ollama-models
+  whisper-models:
+    name: galatea-whisper-models
+  piper-voices:
+    name: galatea-piper-voices
+  perplexica-data:
+    name: galatea-perplexica-data
+
+# ============================================
+# NETWORK
+# ============================================
+
+networks:
+  galatea-network:
+    name: galatea-network
+    driver: bridge

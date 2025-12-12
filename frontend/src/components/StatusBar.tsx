@@ -9,7 +9,7 @@ export function StatusBar() {
   // Find current model info
   const currentModel = models.find(m => m.name === settings.selected_model)
   const modelSize = currentModel?.size 
-    ? (currentModel.size / 1e9).toFixed(1) + 'GB'
+    ? (Number(currentModel.size) / 1e9).toFixed(1) + 'GB'
     : null
 
   const getConnectionIcon = () => {
