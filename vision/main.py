@@ -12,17 +12,19 @@ Endpoints:
 """
 
 import asyncio
+import base64
 import logging
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Optional, List
 
+import cv2
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from analyzer import VisionAnalyzer, VisionResult, get_emotion_description
+from analyzer import VisionAnalyzer, VisionResult, EnrolledFace, get_emotion_description
 
 # Configure logging
 logging.basicConfig(
@@ -142,6 +144,31 @@ class StatusResponse(BaseModel):
     detector: str
     interval: float
     latest_result: Optional[dict] = None
+    owner_enrolled: bool = False
+    owner_name: Optional[str] = None
+
+
+class EnrollFaceRequest(BaseModel):
+    """Request to enroll a face"""
+    name: str
+    role: str = "friend"  # "owner", "friend", "family"
+    image: Optional[str] = None  # Base64 image, or None to capture from webcam
+
+
+class EnrollFaceResponse(BaseModel):
+    """Response from face enrollment"""
+    success: bool
+    face_id: Optional[str] = None
+    name: Optional[str] = None
+    role: Optional[str] = None
+    message: str
+
+
+class FaceListResponse(BaseModel):
+    """List of enrolled faces"""
+    faces: List[dict]
+    owner_enrolled: bool
+    owner_name: Optional[str] = None
 
 
 class HealthResponse(BaseModel):
@@ -175,7 +202,9 @@ async def get_status():
         eyes_open=analyzer.is_running,
         detector=DETECTOR_BACKEND,
         interval=ANALYZE_INTERVAL,
-        latest_result=latest.to_dict() if latest else None
+        latest_result=latest.to_dict() if latest else None,
+        owner_enrolled=analyzer.has_owner(),
+        owner_name=analyzer.get_owner_name(),
     )
 
 
@@ -234,8 +263,101 @@ async def stop_continuous():
     
     analyzer.stop_continuous()
     
-    logger.info("👁️ Eyes closed - continuous analysis stopped")
+    logger.info("Eyes closed - continuous analysis stopped")
     return {"message": "Continuous analysis stopped", "eyes_open": False}
+
+
+# ============== Face Recognition Endpoints ==============
+
+@app.post("/faces/enroll", response_model=EnrollFaceResponse)
+async def enroll_face(request: EnrollFaceRequest):
+    """
+    Enroll a face for recognition
+    
+    - If image is provided (base64), use that
+    - If no image, capture from webcam
+    - role can be: "owner", "friend", "family"
+    """
+    if not analyzer:
+        raise HTTPException(status_code=503, detail="Analyzer not initialized")
+    
+    try:
+        if request.image:
+            # Enroll from provided image
+            face = analyzer.enroll_face_base64(request.image, request.name, request.role)
+        else:
+            # Capture from webcam
+            face = analyzer.enroll_from_webcam(request.name, request.role, CAMERA_INDEX)
+        
+        if face:
+            role_msg = "Owner" if request.role == "owner" else request.role.capitalize()
+            logger.info(f"Enrolled {role_msg}: {request.name}")
+            return EnrollFaceResponse(
+                success=True,
+                face_id=face.id,
+                name=face.name,
+                role=face.role,
+                message=f"Successfully enrolled {request.name} as {role_msg}"
+            )
+        else:
+            return EnrollFaceResponse(
+                success=False,
+                message="Could not detect a face in the image. Please try again with a clear face photo."
+            )
+    except Exception as e:
+        logger.error(f"Enrollment error: {e}")
+        return EnrollFaceResponse(
+            success=False,
+            message=f"Enrollment failed: {str(e)}"
+        )
+
+
+@app.get("/faces", response_model=FaceListResponse)
+async def list_faces():
+    """List all enrolled faces"""
+    if not analyzer:
+        raise HTTPException(status_code=503, detail="Analyzer not initialized")
+    
+    return FaceListResponse(
+        faces=analyzer.get_enrolled_faces(),
+        owner_enrolled=analyzer.has_owner(),
+        owner_name=analyzer.get_owner_name(),
+    )
+
+
+@app.delete("/faces/{face_id}")
+async def delete_face(face_id: str):
+    """Remove an enrolled face"""
+    if not analyzer:
+        raise HTTPException(status_code=503, detail="Analyzer not initialized")
+    
+    if analyzer.remove_face(face_id):
+        return {"success": True, "message": f"Face {face_id} removed"}
+    else:
+        raise HTTPException(status_code=404, detail=f"Face {face_id} not found")
+
+
+@app.post("/faces/capture")
+async def capture_for_enrollment(camera: int = CAMERA_INDEX):
+    """
+    Capture a frame from webcam and return as base64
+    Use this to preview before enrolling
+    """
+    if not analyzer:
+        raise HTTPException(status_code=503, detail="Analyzer not initialized")
+    
+    frame = analyzer.capture_frame_for_enrollment(camera)
+    if frame is None:
+        raise HTTPException(status_code=500, detail="Could not capture frame from webcam")
+    
+    # Encode as JPEG
+    _, buffer = cv2.imencode('.jpg', frame)
+    image_b64 = base64.b64encode(buffer).decode('utf-8')
+    
+    return {
+        "image": image_b64,
+        "message": "Frame captured. Use this image to enroll a face."
+    }
 
 
 @app.websocket("/ws")

@@ -726,6 +726,87 @@ async def vision_live_status():
         )
 
 
+# ============== Face Recognition Endpoints ==============
+
+@app.post("/api/faces/enroll")
+async def enroll_face(
+    name: str = Body(...),
+    role: str = Body("friend"),
+    image: str = Body(None)
+):
+    """
+    Enroll a face for recognition
+    
+    - name: Name of the person
+    - role: "owner", "friend", or "family"
+    - image: Optional base64 image, or None to capture from webcam
+    """
+    try:
+        result = await vision_live_service.enroll_face(name, role, image)
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.get("/api/faces")
+async def list_faces():
+    """List all enrolled faces"""
+    try:
+        result = await vision_live_service.list_faces()
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"faces": [], "owner_enrolled": False, "error": str(e)}
+        )
+
+
+@app.delete("/api/faces/{face_id}")
+async def delete_face(face_id: str):
+    """Delete an enrolled face"""
+    try:
+        result = await vision_live_service.delete_face(face_id)
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.post("/api/faces/capture")
+async def capture_frame_for_enrollment():
+    """Capture a frame from webcam for enrollment preview"""
+    try:
+        result = await vision_live_service.capture_frame()
+        return result
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@app.get("/api/faces/check-owner")
+async def check_owner():
+    """Check if owner is enrolled"""
+    try:
+        has_owner = await vision_live_service.has_owner()
+        owner_name = await vision_live_service.get_owner_name() if has_owner else None
+        return {
+            "owner_enrolled": has_owner,
+            "owner_name": owner_name
+        }
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"owner_enrolled": False, "error": str(e)}
+        )
+
+
 # ============== WebSocket Handler ==============
 
 class ConversationState:
@@ -1284,9 +1365,83 @@ async def generate_response(
     """Generate LLM response and TTS"""
     state.should_interrupt = False
     
-    # Get user profile summary
-    user_profile_summary = user_profile_service.get_profile_summary()
-    user_name = user_profile_service.load_profile().user_name or "User"
+    # ============== ACCESS CONTROL CHECK ==============
+    # If vision is active and owner is enrolled, check identity
+    access_mode = "full"  # "full", "restricted", "denied"
+    current_identity = ""
+    
+    if user_settings.vision_enabled and vision_live_service.is_active:
+        try:
+            # Check if owner is enrolled
+            has_owner = await vision_live_service.has_owner()
+            
+            if has_owner:
+                # Owner is enrolled - verify current person
+                name, role = vision_live_service.get_current_identity()
+                
+                if role == "owner":
+                    # Owner is present - full access
+                    access_mode = "full"
+                    current_identity = name
+                elif role in ["friend", "family"]:
+                    # Known person but not owner - restricted access
+                    access_mode = "restricted"
+                    current_identity = name
+                else:
+                    # Unknown person - deny access
+                    access_mode = "denied"
+                    
+        except Exception as e:
+            print(f"Access control check failed: {e}")
+            # Fail open - allow access if check fails
+            access_mode = "full"
+    
+    # Handle denied access
+    if access_mode == "denied":
+        await websocket.send_json({"type": "status", "state": "processing"})
+        
+        denial_message = "I don't recognize you. I'm Gala, a personal AI assistant. I can only have conversations with my owner. Please ask them to introduce you if you'd like to chat!"
+        
+        await websocket.send_json({
+            "type": "llm_chunk",
+            "text": denial_message
+        })
+        await websocket.send_json({
+            "type": "llm_complete",
+            "text": denial_message
+        })
+        
+        # Still speak the denial
+        try:
+            audio_data = await synthesize_tts(
+                text=denial_message,
+                voice=user_settings.tts_voice,
+                provider=user_settings.tts_provider,
+                speed=user_settings.tts_speed,
+            )
+            if audio_data:
+                await websocket.send_json({
+                    "type": "audio_chunk",
+                    "audio": base64.b64encode(audio_data).decode('utf-8'),
+                    "sentence": denial_message
+                })
+        except Exception as e:
+            print(f"TTS error for denial: {e}")
+        
+        await websocket.send_json({"type": "status", "state": "idle"})
+        return
+    
+    # Get user profile summary (only for owner or if no owner enrolled)
+    user_profile_summary = ""
+    user_name = "User"
+    
+    if access_mode == "full":
+        user_profile_summary = user_profile_service.get_profile_summary()
+        user_name = user_profile_service.load_profile().user_name or "User"
+    elif access_mode == "restricted":
+        # For friends/family - use their name but no personal profile
+        user_name = current_identity if current_identity else "Guest"
+        user_profile_summary = ""  # Don't share owner's personal info
     
     # Get vision context if eyes are open
     vision_context = ""
@@ -1303,6 +1458,10 @@ async def generate_response(
         time_context=time_context,
         user_profile=user_profile_summary if user_profile_summary else None,
     )
+    
+    # Add access mode context to system prompt
+    if access_mode == "restricted":
+        system_prompt += f"\n\nACCESS MODE: You are speaking with {user_name}, a friend/family member of your owner. Be helpful but DO NOT share any personal information about your owner. DO NOT reference previous conversations or the owner's profile. Treat this as a casual conversation with a guest."
     
     # Inject vision context if available
     if vision_context:

@@ -23,3 +23,4 @@ CHAT_MODEL = "ministral-3:3b"
 EMBEDDING_MODEL_PROVIDER = "ollama"
 EMBEDDING_MODEL = "bge-m3:latest"
 
+

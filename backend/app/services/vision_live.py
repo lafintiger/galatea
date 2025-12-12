@@ -18,6 +18,11 @@ class VisionResult:
     attentive: bool = False
     face_count: int = 0
     timestamp: str = ""
+    # Identity (face recognition)
+    identity: str = ""  # Name of recognized person
+    identity_role: str = "unknown"  # "owner", "friend", "family", "unknown"
+    identity_confidence: float = 0.0
+    is_owner: bool = False
     
     def to_context(self) -> str:
         """Convert to natural language for system prompt"""
@@ -26,16 +31,28 @@ class VisionResult:
         
         parts = []
         
+        # Identity - most important!
+        if self.identity and self.is_owner:
+            parts.append(f"This is {self.identity} (the owner)")
+        elif self.identity:
+            parts.append(f"This is {self.identity} (a {self.identity_role})")
+        elif self.identity_role == "unknown":
+            parts.append("Unknown person - NOT the owner")
+        
         # Emotion
         if self.emotion and self.emotion != "unknown":
             conf = "clearly" if self.emotion_confidence > 0.7 else "appears"
-            parts.append(f"User {conf} {self.emotion}")
+            parts.append(f"{conf} {self.emotion}")
         
         # Attention
         if self.attentive:
             parts.append("looking at the screen")
         else:
             parts.append("looking away")
+        
+        # Multiple faces
+        if self.face_count > 1:
+            parts.append(f"{self.face_count} people visible")
         
         return "Visual context: " + ", ".join(parts) if parts else ""
 
@@ -134,15 +151,20 @@ class VisionLiveService:
     def _parse_result(self, data: dict) -> VisionResult:
         """Parse API response into VisionResult"""
         result = VisionResult(
-            present=data.get("present", False),
+            present=data.get("face_detected", data.get("present", False)),
             emotion=data.get("emotion", "unknown"),
-            emotion_confidence=data.get("emotion_confidence", 0.0),
+            emotion_confidence=data.get("emotion_scores", {}).get(data.get("emotion", ""), 0.0) / 100 if data.get("emotion_scores") else 0.0,
             age=data.get("age", 0),
             gender=data.get("gender", "unknown"),
             gender_confidence=data.get("gender_confidence", 0.0),
-            attentive=data.get("attentive", False),
-            face_count=data.get("face_count", 0),
+            attentive=data.get("attention", data.get("attentive", False)),
+            face_count=data.get("face_count", 1 if data.get("face_detected") else 0),
             timestamp=data.get("timestamp", ""),
+            # Identity fields
+            identity=data.get("identity", ""),
+            identity_role=data.get("identity_role", "unknown"),
+            identity_confidence=data.get("identity_confidence", 0.0),
+            is_owner=data.get("is_owner", False),
         )
         self._current_result = result
         return result
@@ -176,6 +198,93 @@ class VisionLiveService:
         if not self._is_active or not self._current_result:
             return ""
         return self._current_result.to_context()
+    
+    # ============== Face Recognition Methods ==============
+    
+    async def enroll_face(self, name: str, role: str = "friend", image_base64: Optional[str] = None) -> dict:
+        """
+        Enroll a face for recognition
+        
+        Args:
+            name: Name of the person
+            role: "owner", "friend", or "family"
+            image_base64: Optional base64 image, or None to capture from webcam
+        """
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                payload = {"name": name, "role": role}
+                if image_base64:
+                    payload["image"] = image_base64
+                
+                response = await client.post(f"{self.base_url}/faces/enroll", json=payload)
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"Face enrollment failed: {e}")
+            return {"success": False, "message": str(e)}
+    
+    async def list_faces(self) -> dict:
+        """List all enrolled faces"""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.get(f"{self.base_url}/faces")
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"List faces failed: {e}")
+            return {"faces": [], "owner_enrolled": False, "error": str(e)}
+    
+    async def delete_face(self, face_id: str) -> dict:
+        """Delete an enrolled face"""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.delete(f"{self.base_url}/faces/{face_id}")
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"Delete face failed: {e}")
+            return {"success": False, "message": str(e)}
+    
+    async def capture_frame(self) -> dict:
+        """Capture a frame from webcam for enrollment preview"""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.post(f"{self.base_url}/faces/capture")
+                response.raise_for_status()
+                return response.json()
+        except Exception as e:
+            print(f"Capture frame failed: {e}")
+            return {"error": str(e)}
+    
+    async def has_owner(self) -> bool:
+        """Check if owner is enrolled"""
+        faces = await self.list_faces()
+        return faces.get("owner_enrolled", False)
+    
+    async def get_owner_name(self) -> Optional[str]:
+        """Get owner's name if enrolled"""
+        faces = await self.list_faces()
+        return faces.get("owner_name")
+    
+    # ============== Access Control ==============
+    
+    def is_owner_present(self) -> bool:
+        """Check if the current person is the owner"""
+        if not self._current_result:
+            return False
+        return self._current_result.is_owner
+    
+    def is_known_person(self) -> bool:
+        """Check if the current person is known (owner or friend)"""
+        if not self._current_result:
+            return False
+        return bool(self._current_result.identity)
+    
+    def get_current_identity(self) -> tuple[str, str]:
+        """Get current person's identity (name, role)"""
+        if not self._current_result or not self._current_result.identity:
+            return ("", "unknown")
+        return (self._current_result.identity, self._current_result.identity_role)
 
 
 # Singleton instance

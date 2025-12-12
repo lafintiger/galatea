@@ -438,7 +438,7 @@ ollama pull deepseek-ocr:latest        # Text extraction (6.7GB)
 ollama pull huihui_ai/qwen3-vl-abliterated:2b  # Uncensored fallback
 ```
 
-### 12b. Vision Live - Gala's Eyes (Real-time Face/Emotion Analysis)
+### 12b. Vision Live - Gala's Eyes (Real-time Face/Emotion Analysis + Face Recognition)
 
 Gala can "see" the user in real-time using the galatea-vision service (DeepFace).
 
@@ -450,6 +450,49 @@ Gala can "see" the user in real-time using the galatea-vision service (DeepFace)
 | ⚧ Gender | Male/Female with confidence |
 | 👤 Presence | Is someone at the screen? |
 | 👀 Attention | Are they looking at the screen? |
+| 🔐 **Face Recognition** | Identify owner vs friends vs strangers |
+
+**Face Recognition & Access Control:**
+
+Gala can recognize who's speaking and adjust behavior accordingly:
+
+| Identity | Access Level | Behavior |
+|----------|--------------|----------|
+| **Owner** | Full | Full conversation, personal profile, chat history |
+| **Friend/Family** | Limited | Can chat, but NO access to owner's personal info |
+| **Unknown** | Denied | Gala politely refuses to have a conversation |
+
+**Face Enrollment (via Onboarding Panel):**
+1. Open the "Get to Know You" panel
+2. Click the "Face ID" tab
+3. Use your webcam to capture your face
+4. Owner is enrolled first, then friends/family can be added
+
+**Face Recognition API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/faces/enroll` | Enroll a new face (owner/friend/family) |
+| GET | `/api/faces` | List all enrolled faces |
+| DELETE | `/api/faces/{id}` | Remove an enrolled face |
+| POST | `/api/faces/capture` | Capture webcam frame for preview |
+| GET | `/api/faces/check-owner` | Check if owner is enrolled |
+
+**How Access Control Works:**
+```
+User speaks → Vision analyzes face → identity_role determined
+                    ↓
+            ┌───────┴───────┐
+            │  is_owner?    │
+            └───────┬───────┘
+                    │
+    ┌───────────────┼───────────────┐
+    ▼               ▼               ▼
+  Owner          Friend         Unknown
+    │               │               │
+Full access    No personal      Politely
++ profile      info shared      decline
++ history
+```
 
 **Toggle Methods:**
 1. **UI Button**: Eye toggle button in text input bar
@@ -474,9 +517,9 @@ User says "Open your eyes" → detect_vision_command() → vision_live_service.s
                                                               ↓
                                                       Webcam analysis starts
                                                               ↓
-                                     Emotion context injected into system prompt
+                                     Identity + Emotion context injected into system prompt
                                                               ↓
-                              Gala naturally responds to user's emotional state
+                              Gala naturally responds based on who's speaking
 ```
 
 **API Endpoints:**
@@ -494,12 +537,13 @@ User says "Open your eyes" → detect_vision_command() → vision_live_service.s
 | `close_eyes` | Client→Server | Request to stop vision |
 | `get_vision_status` | Client→Server | Request current status |
 | `vision_status` | Server→Client | Eyes open/closed confirmation |
-| `vision_update` | Server→Client | Latest analysis results |
+| `vision_update` | Server→Client | Latest analysis results (includes identity) |
 
 **Privacy First:**
 - Eyes are **closed by default**
 - User must explicitly open them
 - No data leaves the machine
+- Face embeddings stored locally in `vision/data/faces/`
 - Can be toggled off anytime
 
 **Installation Options:**
@@ -675,6 +719,8 @@ docker start wyoming-whisper piper
 | **User Profile / Onboarding** | 30+ questions across 9 categories, pausable, builds personalized context |
 | **Docker Compose Suite** | One-command deployment of full Galatea AI Suite |
 | **Vision Live (Gala's Eyes)** | Real-time face/emotion detection via DeepFace, toggle via UI or voice |
+| **Face Recognition** | Owner enrollment, friend/family registration, access control based on identity |
+| **Privacy Access Control** | Owner: full access, Friends: limited, Strangers: denied |
 
 ### 📋 Phase 6: Future Features
 
