@@ -494,6 +494,33 @@ Full access    No personal      Politely
 + history
 ```
 
+**Startup Awareness:**
+
+When Gala opens her eyes, she captures comprehensive context:
+
+```
+"Open your eyes" → Capture frame
+                        ↓
+    ┌───────────────────────────────────┐
+    │        STARTUP ANALYSIS           │
+    │                                   │
+    │  1. Face Recognition → "Vinny"    │
+    │  2. Emotion → "tired, neutral"    │
+    │  3. Scene → "home office, night"  │
+    │  4. Time → "11:30 PM Friday"      │
+    └───────────────────────────────────┘
+                        ↓
+    Gala: "Hey Vinny! Burning the midnight oil?
+           You look like you could use some coffee..."
+```
+
+| Context | Source | Example |
+|---------|--------|---------|
+| Identity | DeepFace | "Vinny (owner)" |
+| Emotion | DeepFace | "tired", "happy", "stressed" |
+| Scene | granite3.2-vision | "home office with dual monitors" |
+| Time | System | "late Friday night" |
+
 **Toggle Methods:**
 1. **UI Button**: Eye toggle button in text input bar
 2. **Voice**: "Gala, open your eyes" / "Gala, close your eyes"
