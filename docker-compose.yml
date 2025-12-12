@@ -9,13 +9,16 @@
 #   docker compose up
 #   (set OLLAMA_HOST in .env or environment)
 #
-# EXISTING PERPLEXICA/SEARXNG:
-#   docker compose --profile voice-only up
-#   (just Galatea + voice services)
+# WITH VISION ("Open Gala's eyes"):
+#   docker compose --profile vision up
+#
+# FULL STACK + VISION:
+#   docker compose --profile full --profile vision up
 #
 # ============================================
 # Access Points:
 #   - Galatea:    http://localhost:5173
+#   - Vision:     http://localhost:8020 (when enabled)
 #   - SearXNG:    http://localhost:4000
 #   - Perplexica: http://localhost:3000
 #   - Ollama API: http://localhost:11434
@@ -46,6 +49,9 @@ services:
       - PERPLEXICA_HOST=${PERPLEXICA_HOST:-perplexica-backend}
       - PERPLEXICA_PORT=${PERPLEXICA_PORT:-3001}
       - TTS_PROVIDER=${TTS_PROVIDER:-kokoro}
+      # Vision - Gala's eyes (optional, requires --profile vision)
+      - VISION_HOST=${VISION_HOST:-galatea-vision}
+      - VISION_PORT=${VISION_PORT:-8020}
     volumes:
       - galatea-data:/app/data
     depends_on:
@@ -202,6 +208,39 @@ services:
       - "3000:3000"
     depends_on:
       - perplexica-backend
+    restart: unless-stopped
+    networks:
+      - galatea-network
+
+  # ============================================
+  # VISION - Face/Emotion Analysis (Optional)
+  # "Gala's Eyes" - Toggle with profile
+  # ============================================
+  
+  galatea-vision:
+    build: ./vision
+    container_name: galatea-vision
+    profiles: ["vision", "full-vision"]
+    ports:
+      - "8020:8020"
+    environment:
+      # Face detector: opencv (fast), retinaface (accurate), mediapipe (balanced)
+      - DETECTOR_BACKEND=${VISION_DETECTOR:-opencv}
+      # How often to analyze (seconds)
+      - ANALYZE_INTERVAL=${VISION_INTERVAL:-2.0}
+      # Camera index (usually 0)
+      - CAMERA_INDEX=${CAMERA_INDEX:-0}
+    # Webcam access (Linux)
+    devices:
+      - /dev/video0:/dev/video0
+    # GPU support - uncomment for NVIDIA GPU
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
     restart: unless-stopped
     networks:
       - galatea-network

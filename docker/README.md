@@ -13,6 +13,7 @@
 | 🔊 **Kokoro** | HD TTS | 8880 |
 | 🔍 **SearXNG** | Private search | 4000 |
 | 🧠 **Perplexica** | AI research | 3000 |
+| 👁️ **Vision** | Face/emotion analysis | 8020 |
 
 ---
 
@@ -113,7 +114,68 @@ TZ=America/Los_Angeles
 | (none) | Galatea + Voice only |
 | `--profile with-ollama` | + Ollama in Docker |
 | `--profile with-search` | + SearXNG + Perplexica |
-| `--profile full` | Everything |
+| `--profile vision` | + Face/Emotion analysis |
+| `--profile full` | Everything (except vision) |
+| `--profile full --profile vision` | Everything + Vision |
+
+---
+
+## 👁️ Vision - "Gala's Eyes"
+
+The Vision service enables Gala to see and understand you through your webcam.
+
+### What it detects:
+- 😊 **Emotion** - happy, sad, angry, fear, surprise, disgust, neutral
+- 👤 **Presence** - Is someone at the desk?
+- 👀 **Attention** - Are they looking at the screen?
+- 🎂 **Age** - Estimated age
+- ⚧ **Gender** - Detected gender
+
+### Enable Vision
+
+```bash
+# Start with vision enabled
+docker compose --profile vision up -d
+
+# Or add to existing setup
+docker compose --profile full --profile vision up -d
+```
+
+### Vision API
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/start` | POST | Open Gala's eyes (start webcam) |
+| `/stop` | POST | Close Gala's eyes (stop webcam) |
+| `/status` | GET | Current status + latest result |
+| `/analyze` | POST | Analyze single image (base64) |
+| `/ws` | WebSocket | Real-time emotion updates |
+
+### Example: Toggle Eyes
+
+```bash
+# Open eyes
+curl -X POST http://localhost:8020/start
+
+# Check status
+curl http://localhost:8020/status
+
+# Close eyes  
+curl -X POST http://localhost:8020/stop
+```
+
+### Vision Environment Variables
+
+```bash
+# Face detector (opencv=fast, retinaface=accurate)
+VISION_DETECTOR=opencv
+
+# Analysis interval (seconds)
+VISION_INTERVAL=2.0
+
+# Camera index
+CAMERA_INDEX=0
+```
 
 ---
 
@@ -126,6 +188,7 @@ After starting, open your browser:
 | **Galatea** | http://localhost:5173 |
 | **SearXNG** | http://localhost:4000 |
 | **Perplexica** | http://localhost:3000 |
+| **Vision API** | http://localhost:8020 (when enabled) |
 
 ---
 
