@@ -846,6 +846,8 @@ docker start wyoming-whisper piper
 3. **Wyoming Protocol**: Use official `wyoming` package, not custom implementation
 4. **Piper Voice Location**: LinuxServer Piper container uses `/config/` not `/data/`
 5. **Audio Playback**: Must handle browser autoplay policies (AudioContext resume)
+6. **Windows Console Emoji Encoding**: Windows PowerShell/cmd uses cp1252 encoding which cannot display Unicode emojis. **NEVER use emojis in Python `print()` statements** - use ASCII alternatives like `[OK]`, `[ERROR]`, `[WS]`, `[Vision]` instead. This causes `UnicodeEncodeError` and crashes the backend on startup.
+7. **React Ternary Operator with 3+ Modes**: When adding a third mode to a component that uses a two-way ternary (`mode === 'a' ? (...) : (...)`), you MUST chain properly: `mode === 'a' ? (...) : mode === 'b' ? (...) : (...)`. Forgetting to add the middle condition causes silent render failures with no error in console.
 
 ---
 
