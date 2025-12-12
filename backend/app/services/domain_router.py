@@ -1,0 +1,375 @@
+"""
+Domain Router Service - Routes queries to specialist models
+
+This service detects the domain of a user query and determines if a
+specialist model should be used instead of the default chat model.
+
+Implements:
+- Pattern-based detection (fast, handles obvious cases)
+- Self-routing support (Gala can request specialist help)
+- Model swap coordination with model_manager
+"""
+
+import re
+from dataclasses import dataclass
+from enum import Enum
+from typing import Optional, List, Tuple
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class Domain(Enum):
+    """Supported specialist domains"""
+    GENERAL = "general"
+    MEDICAL = "medical"
+    LEGAL = "legal"
+    CODING = "coding"
+    MATH = "math"
+    FINANCE = "finance"
+    SCIENCE = "science"
+    CREATIVE = "creative"
+
+
+@dataclass
+class DomainConfig:
+    """Configuration for a specialist domain"""
+    domain: Domain
+    patterns: List[str]  # Regex patterns to match
+    keywords: List[str]  # Simple keyword matches
+    model: str  # Ollama model name
+    model_size: str  # For display (e.g., "7B")
+    description: str  # Human-readable description
+    enabled: bool = True
+
+
+# Default specialist model configurations
+# Users can override these in settings
+DEFAULT_SPECIALISTS = {
+    Domain.MEDICAL: DomainConfig(
+        domain=Domain.MEDICAL,
+        patterns=[
+            r"\b(diagnos|symptom|treatment|medication|disease|illness|patient)\w*\b",
+            r"\b(doctor|physician|nurse|hospital|clinic)\b",
+            r"\b(prescription|dosage|side.?effect|drug.?interact)\w*\b",
+            r"\b(blood.?pressure|heart.?rate|cholesterol|diabetes|cancer)\b",
+            r"\b(pain|ache|fever|infection|inflammation)\b",
+            r"\b(surgery|procedure|therapy|rehabilitation)\b",
+        ],
+        keywords=[
+            "medical", "health", "healthcare", "medicine", "clinical",
+            "diagnosis", "prognosis", "chronic", "acute", "condition",
+            "vaccine", "immunization", "antibiotic", "antidepressant",
+            "mg", "dosage", "twice daily", "prescription",
+        ],
+        model="meditron:7b",  # or biomistral, medllama2
+        model_size="7B",
+        description="Medical and healthcare specialist",
+        enabled=True,
+    ),
+    
+    Domain.LEGAL: DomainConfig(
+        domain=Domain.LEGAL,
+        patterns=[
+            r"\b(lawsuit|litigation|court|trial|verdict|settlement)\b",
+            r"\b(contract|agreement|clause|terms|breach)\b",
+            r"\b(attorney|lawyer|counsel|paralegal|judge)\b",
+            r"\b(liability|negligence|damages|compensation)\b",
+            r"\b(copyright|trademark|patent|intellectual.?property)\b",
+            r"\b(criminal|civil|plaintiff|defendant|prosecution)\b",
+        ],
+        keywords=[
+            "legal", "law", "rights", "sue", "lawsuit",
+            "court", "judge", "attorney", "lawyer",
+            "contract", "agreement", "liability",
+            "divorce", "custody", "alimony",
+            "arrest", "bail", "sentence",
+            "landlord", "tenant", "lease", "eviction",
+        ],
+        model="saul-instruct:7b",  # or legallama
+        model_size="7B",
+        description="Legal and contract specialist",
+        enabled=True,
+    ),
+    
+    Domain.CODING: DomainConfig(
+        domain=Domain.CODING,
+        patterns=[
+            r"\b(function|method|class|variable|parameter|argument)\b",
+            r"\b(error|exception|bug|debug|stack.?trace)\b",
+            r"\b(api|endpoint|request|response|json|xml)\b",
+            r"\b(database|sql|query|table|join|index)\b",
+            r"\b(git|commit|branch|merge|pull.?request)\b",
+            r"```\w*\n",  # Code blocks
+            r"\b(import|from|require|include)\s+\w+",
+        ],
+        keywords=[
+            "code", "coding", "programming", "developer", "software",
+            "python", "javascript", "typescript", "java", "rust", "go",
+            "react", "vue", "angular", "node", "django", "flask",
+            "algorithm", "data structure", "recursion", "iteration",
+            "frontend", "backend", "fullstack", "devops",
+            "docker", "kubernetes", "aws", "cloud",
+        ],
+        model="qwen2.5-coder:7b",  # or deepseek-coder, codellama
+        model_size="7B",
+        description="Programming and software development specialist",
+        enabled=True,
+    ),
+    
+    Domain.MATH: DomainConfig(
+        domain=Domain.MATH,
+        patterns=[
+            r"\b(calculate|compute|solve|evaluate|simplify)\b",
+            r"\b(equation|formula|expression|inequality)\b",
+            r"\b(derivative|integral|limit|differential)\b",
+            r"\b(matrix|vector|determinant|eigenvalue)\b",
+            r"\b(probability|statistics|distribution|variance)\b",
+            r"[=+\-*/^√∑∫∂]",  # Math symbols
+            r"\d+\s*[+\-*/^]\s*\d+",  # Arithmetic expressions
+        ],
+        keywords=[
+            "math", "mathematics", "mathematical", "algebra", "geometry",
+            "calculus", "trigonometry", "statistics", "probability",
+            "equation", "formula", "theorem", "proof",
+            "graph", "function", "variable", "constant",
+            "factorial", "permutation", "combination",
+        ],
+        model="mathstral:7b",  # or qwen2.5-math
+        model_size="7B",
+        description="Mathematics and calculations specialist",
+        enabled=True,
+    ),
+    
+    Domain.FINANCE: DomainConfig(
+        domain=Domain.FINANCE,
+        patterns=[
+            r"\b(stock|share|equity|bond|fund|etf|portfolio)\b",
+            r"\b(invest|investment|trading|market|exchange)\b",
+            r"\b(dividend|yield|return|profit|loss|roi)\b",
+            r"\b(tax|deduction|credit|irs|filing)\b",
+            r"\b(mortgage|loan|interest|principal|apr)\b",
+            r"\b(budget|expense|income|savings|retirement)\b",
+            r"\$\d+|\d+%",  # Dollar amounts, percentages
+        ],
+        keywords=[
+            "finance", "financial", "money", "banking", "bank",
+            "stock", "bond", "investment", "portfolio",
+            "401k", "ira", "roth", "pension", "retirement",
+            "crypto", "bitcoin", "ethereum", "cryptocurrency",
+            "inflation", "recession", "gdp", "economy",
+        ],
+        model="phi3:latest",  # General model with good finance knowledge
+        model_size="3.8B",
+        description="Finance and investment specialist",
+        enabled=False,  # Disabled by default - no great specialist yet
+    ),
+    
+    Domain.SCIENCE: DomainConfig(
+        domain=Domain.SCIENCE,
+        patterns=[
+            r"\b(hypothesis|experiment|research|study|analysis)\b",
+            r"\b(atom|molecule|element|compound|reaction)\b",
+            r"\b(cell|dna|rna|protein|gene|chromosome)\b",
+            r"\b(force|energy|mass|velocity|acceleration)\b",
+            r"\b(evolution|species|ecosystem|biodiversity)\b",
+        ],
+        keywords=[
+            "science", "scientific", "research", "experiment",
+            "physics", "chemistry", "biology", "astronomy",
+            "quantum", "relativity", "particle", "wave",
+            "evolution", "genetics", "neuroscience",
+            "climate", "environment", "ecology",
+        ],
+        model="phi3:latest",  # General model
+        model_size="3.8B",
+        description="Science and research specialist",
+        enabled=False,  # Disabled by default
+    ),
+    
+    Domain.CREATIVE: DomainConfig(
+        domain=Domain.CREATIVE,
+        patterns=[
+            r"\b(write|story|poem|novel|screenplay|script)\b",
+            r"\b(character|plot|setting|narrative|dialogue)\b",
+            r"\b(creative|imagination|fantasy|fiction)\b",
+        ],
+        keywords=[
+            "write", "writing", "story", "novel", "poem", "poetry",
+            "creative", "fiction", "fantasy", "sci-fi",
+            "character", "plot", "narrative", "dialogue",
+            "roleplay", "scenario", "imagine",
+        ],
+        model="mythomax:latest",  # or nous-hermes
+        model_size="13B",
+        description="Creative writing specialist",
+        enabled=False,  # Disabled by default
+    ),
+}
+
+
+class DomainRouter:
+    """
+    Routes user queries to appropriate specialist models.
+    
+    Uses a hybrid approach:
+    1. Pattern matching for obvious domain indicators
+    2. Keyword detection for common terms
+    3. Confidence scoring to decide if specialist is needed
+    """
+    
+    def __init__(self):
+        self.specialists = DEFAULT_SPECIALISTS.copy()
+        self._compiled_patterns: dict[Domain, List[re.Pattern]] = {}
+        self._compile_patterns()
+    
+    def _compile_patterns(self):
+        """Pre-compile regex patterns for performance"""
+        for domain, config in self.specialists.items():
+            if config.enabled:
+                self._compiled_patterns[domain] = [
+                    re.compile(p, re.IGNORECASE) for p in config.patterns
+                ]
+    
+    def configure_specialist(self, domain: Domain, model: str, enabled: bool = True):
+        """Update specialist model configuration"""
+        if domain in self.specialists:
+            self.specialists[domain].model = model
+            self.specialists[domain].enabled = enabled
+            self._compile_patterns()
+    
+    def detect_domain(self, text: str) -> Tuple[Domain, float, Optional[str]]:
+        """
+        Detect the domain of a user query.
+        
+        Returns:
+            (domain, confidence, specialist_model)
+            - domain: The detected domain
+            - confidence: 0.0-1.0 confidence score
+            - specialist_model: Model name if specialist recommended, None otherwise
+        """
+        text_lower = text.lower()
+        scores: dict[Domain, float] = {d: 0.0 for d in Domain}
+        
+        # Check each enabled specialist
+        for domain, config in self.specialists.items():
+            if not config.enabled:
+                continue
+            
+            score = 0.0
+            
+            # Pattern matching (higher weight)
+            if domain in self._compiled_patterns:
+                for pattern in self._compiled_patterns[domain]:
+                    matches = pattern.findall(text)
+                    score += len(matches) * 0.3
+            
+            # Keyword matching (lower weight)
+            for keyword in config.keywords:
+                if keyword.lower() in text_lower:
+                    score += 0.15
+            
+            scores[domain] = min(score, 1.0)  # Cap at 1.0
+        
+        # Find highest scoring domain
+        best_domain = max(scores, key=scores.get)
+        best_score = scores[best_domain]
+        
+        # Threshold for recommending specialist
+        CONFIDENCE_THRESHOLD = 0.4
+        
+        if best_score >= CONFIDENCE_THRESHOLD and best_domain != Domain.GENERAL:
+            specialist = self.specialists[best_domain]
+            logger.info(f"Domain detected: {best_domain.value} (confidence: {best_score:.2f})")
+            return (best_domain, best_score, specialist.model)
+        
+        return (Domain.GENERAL, 1.0 - best_score, None)
+    
+    def parse_self_route(self, text: str) -> Optional[Tuple[Domain, str]]:
+        """
+        Parse self-routing tags from Gala's response.
+        
+        Looks for patterns like:
+        - [NEED:medical]
+        - [ROUTE:coding]
+        - [SPECIALIST:legal]
+        
+        Returns:
+            (domain, model) if routing tag found, None otherwise
+        """
+        patterns = [
+            r'\[NEED:(\w+)\]',
+            r'\[ROUTE:(\w+)\]',
+            r'\[SPECIALIST:(\w+)\]',
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                domain_str = match.group(1).lower()
+                try:
+                    domain = Domain(domain_str)
+                    if domain in self.specialists and self.specialists[domain].enabled:
+                        return (domain, self.specialists[domain].model)
+                except ValueError:
+                    logger.warning(f"Unknown domain in self-route: {domain_str}")
+        
+        return None
+    
+    def get_enabled_specialists(self) -> List[dict]:
+        """Get list of enabled specialist configurations"""
+        return [
+            {
+                "domain": config.domain.value,
+                "model": config.model,
+                "model_size": config.model_size,
+                "description": config.description,
+            }
+            for config in self.specialists.values()
+            if config.enabled
+        ]
+    
+    def get_routing_prompt_addition(self) -> str:
+        """
+        Get system prompt addition for self-routing (Option C).
+        
+        This teaches Gala to recognize when she needs specialist help.
+        """
+        enabled_domains = [d.value for d, c in self.specialists.items() if c.enabled]
+        
+        if not enabled_domains:
+            return ""
+        
+        return f"""
+SPECIALIST KNOWLEDGE ROUTING:
+You have access to specialist knowledge bases for: {', '.join(enabled_domains)}.
+
+If a question requires deep expertise in one of these areas and you're not fully confident in your answer, you may request specialist assistance by including a routing tag in your response:
+- [NEED:medical] - for complex medical questions (drug interactions, diagnoses, treatments)
+- [NEED:legal] - for legal advice, contracts, rights, litigation
+- [NEED:coding] - for programming help, debugging, code review
+- [NEED:math] - for complex calculations, proofs, statistics
+
+Only use these tags when the question genuinely requires specialist knowledge. For general questions or topics you're confident about, respond normally.
+
+When you use a routing tag, briefly acknowledge that you're consulting specialist knowledge, e.g.:
+"That's an important medical question. Let me consult my medical knowledge base... [NEED:medical]"
+"""
+    
+    def get_handoff_message(self, domain: Domain) -> str:
+        """Get a natural transition message when switching to specialist"""
+        messages = {
+            Domain.MEDICAL: "Let me tap into my medical expertise for this...",
+            Domain.LEGAL: "I'll consult my legal knowledge base for this...",
+            Domain.CODING: "Switching to my programming specialist mode...",
+            Domain.MATH: "Let me engage my mathematical reasoning...",
+            Domain.FINANCE: "Consulting my financial analysis capabilities...",
+            Domain.SCIENCE: "Accessing my scientific knowledge base...",
+            Domain.CREATIVE: "Engaging creative writing mode...",
+        }
+        return messages.get(domain, "Let me think about this more carefully...")
+
+
+# Singleton instance
+domain_router = DomainRouter()
+

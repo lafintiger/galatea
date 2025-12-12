@@ -4,6 +4,17 @@ from typing import Optional, Literal
 from datetime import datetime
 
 
+class SpecialistModels(BaseModel):
+    """Specialist model configuration for domain routing"""
+    medical: str = "meditron:7b"
+    legal: str = "saul-instruct:7b"  
+    coding: str = "qwen2.5-coder:7b"
+    math: str = "mathstral:7b"
+    finance: str = ""  # Disabled by default
+    science: str = ""  # Disabled by default
+    creative: str = ""  # Disabled by default
+
+
 class UserSettings(BaseModel):
     """User settings schema"""
     assistant_name: str = "Galatea"
@@ -27,6 +38,11 @@ class UserSettings(BaseModel):
     
     # Vision (Gala's Eyes) - real-time face/emotion analysis
     vision_enabled: bool = False  # Eyes open/closed state
+    
+    # Domain Routing - Specialist models for specific domains
+    domain_routing_enabled: bool = True  # Enable automatic specialist routing
+    specialist_models: SpecialistModels = SpecialistModels()
+    tts_speed: float = 1.0  # Alias for voice_speed (used in TTS calls)
 
 
 class Message(BaseModel):

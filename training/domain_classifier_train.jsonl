@@ -1,0 +1,173 @@
+{"text": "What are the side effects of metformin?", "domain": "medical"}
+{"text": "Can I take ibuprofen with blood thinners?", "domain": "medical"}
+{"text": "What causes high blood pressure?", "domain": "medical"}
+{"text": "My doctor prescribed amoxicillin, how should I take it?", "domain": "medical"}
+{"text": "What are the symptoms of diabetes?", "domain": "medical"}
+{"text": "Is it safe to take aspirin every day?", "domain": "medical"}
+{"text": "What does an MRI scan show?", "domain": "medical"}
+{"text": "How do I know if I have a concussion?", "domain": "medical"}
+{"text": "What causes migraines and how to treat them?", "domain": "medical"}
+{"text": "Should I get a flu shot this year?", "domain": "medical"}
+{"text": "What are the early signs of heart disease?", "domain": "medical"}
+{"text": "How does chemotherapy work?", "domain": "medical"}
+{"text": "What is the difference between a cold and the flu?", "domain": "medical"}
+{"text": "Can stress cause physical symptoms?", "domain": "medical"}
+{"text": "What are the risks of anesthesia?", "domain": "medical"}
+{"text": "How do antibiotics work against infections?", "domain": "medical"}
+{"text": "What causes chronic fatigue syndrome?", "domain": "medical"}
+{"text": "Is it normal to have chest pain after exercise?", "domain": "medical"}
+{"text": "What vitamins should I take daily?", "domain": "medical"}
+{"text": "How do I lower my cholesterol naturally?", "domain": "medical"}
+{"text": "What are the warning signs of a stroke?", "domain": "medical"}
+{"text": "Can I drink alcohol while on medication?", "domain": "medical"}
+{"text": "What causes kidney stones and how to prevent them?", "domain": "medical"}
+{"text": "How often should I get a colonoscopy?", "domain": "medical"}
+{"text": "What are the side effects of birth control pills?", "domain": "medical"}
+{"text": "How do vaccines work to prevent disease?", "domain": "medical"}
+{"text": "What causes acid reflux and how to treat it?", "domain": "medical"}
+{"text": "Is it safe to exercise with a heart condition?", "domain": "medical"}
+{"text": "What are the symptoms of thyroid problems?", "domain": "medical"}
+{"text": "How do I know if I need glasses?", "domain": "medical"}
+{"text": "What causes insomnia and how to cure it?", "domain": "medical"}
+{"text": "Can I sue my landlord for not fixing the heating?", "domain": "legal"}
+{"text": "What are my rights if I get fired without notice?", "domain": "legal"}
+{"text": "How do I file for bankruptcy?", "domain": "legal"}
+{"text": "Is a verbal agreement legally binding?", "domain": "legal"}
+{"text": "What happens if I break a contract?", "domain": "legal"}
+{"text": "Can I get out of my lease early?", "domain": "legal"}
+{"text": "What is the statute of limitations for personal injury?", "domain": "legal"}
+{"text": "Do I need a lawyer for small claims court?", "domain": "legal"}
+{"text": "How do I protect my intellectual property?", "domain": "legal"}
+{"text": "What are the grounds for divorce in my state?", "domain": "legal"}
+{"text": "Can my employer force me to work overtime?", "domain": "legal"}
+{"text": "What is the difference between a misdemeanor and a felony?", "domain": "legal"}
+{"text": "How do I write a will?", "domain": "legal"}
+{"text": "What are my rights during a traffic stop?", "domain": "legal"}
+{"text": "Can I record a conversation without consent?", "domain": "legal"}
+{"text": "How does child custody work after divorce?", "domain": "legal"}
+{"text": "What is medical malpractice?", "domain": "legal"}
+{"text": "Can I be held liable if someone slips on my property?", "domain": "legal"}
+{"text": "How do I trademark a business name?", "domain": "legal"}
+{"text": "What are the penalties for drunk driving?", "domain": "legal"}
+{"text": "Can my neighbor build a fence on my property line?", "domain": "legal"}
+{"text": "What is considered harassment in the workplace?", "domain": "legal"}
+{"text": "How do I contest a parking ticket?", "domain": "legal"}
+{"text": "What are the requirements for a valid contract?", "domain": "legal"}
+{"text": "Can I sue for emotional distress?", "domain": "legal"}
+{"text": "How does probate work when someone dies?", "domain": "legal"}
+{"text": "What is the difference between civil and criminal court?", "domain": "legal"}
+{"text": "Can I represent myself in court?", "domain": "legal"}
+{"text": "What happens if I miss a court date?", "domain": "legal"}
+{"text": "How do I get a restraining order?", "domain": "legal"}
+{"text": "What are tenant rights regarding security deposits?", "domain": "legal"}
+{"text": "How do I fix a segmentation fault in C++?", "domain": "coding"}
+{"text": "What is the difference between let and var in JavaScript?", "domain": "coding"}
+{"text": "How do I reverse a linked list in Python?", "domain": "coding"}
+{"text": "Can you help me debug this async function?", "domain": "coding"}
+{"text": "What is the time complexity of quicksort?", "domain": "coding"}
+{"text": "How do I connect to a MySQL database in Node.js?", "domain": "coding"}
+{"text": "What is the best way to handle errors in React?", "domain": "coding"}
+{"text": "How do I deploy a Django app to AWS?", "domain": "coding"}
+{"text": "What is the difference between REST and GraphQL?", "domain": "coding"}
+{"text": "How do I implement authentication with JWT?", "domain": "coding"}
+{"text": "Can you explain recursion with an example?", "domain": "coding"}
+{"text": "How do I write unit tests in Python?", "domain": "coding"}
+{"text": "What is the best way to manage state in React?", "domain": "coding"}
+{"text": "How do I use Docker to containerize my app?", "domain": "coding"}
+{"text": "What is the difference between SQL and NoSQL?", "domain": "coding"}
+{"text": "How do I implement a binary search tree?", "domain": "coding"}
+{"text": "What is the purpose of the virtual keyword in C++?", "domain": "coding"}
+{"text": "How do I make an HTTP request in Python?", "domain": "coding"}
+{"text": "What is the difference between == and === in JavaScript?", "domain": "coding"}
+{"text": "How do I parse JSON in Java?", "domain": "coding"}
+{"text": "What is dependency injection and why use it?", "domain": "coding"}
+{"text": "How do I optimize database queries?", "domain": "coding"}
+{"text": "What is the difference between GET and POST requests?", "domain": "coding"}
+{"text": "How do I implement OAuth2 authentication?", "domain": "coding"}
+{"text": "What is the best way to handle file uploads in Node.js?", "domain": "coding"}
+{"text": "How do I create a REST API in Flask?", "domain": "coding"}
+{"text": "What is the difference between threads and processes?", "domain": "coding"}
+{"text": "How do I use Git to merge branches?", "domain": "coding"}
+{"text": "What is the purpose of async/await in Python?", "domain": "coding"}
+{"text": "How do I implement caching in a web application?", "domain": "coding"}
+{"text": "What is the solve for x: 2x + 5 = 15?", "domain": "math"}
+{"text": "How do I calculate the derivative of x^3?", "domain": "math"}
+{"text": "What is the integral of sin(x)?", "domain": "math"}
+{"text": "How do I solve a system of linear equations?", "domain": "math"}
+{"text": "What is the Pythagorean theorem?", "domain": "math"}
+{"text": "How do I calculate compound interest?", "domain": "math"}
+{"text": "What is the determinant of this matrix?", "domain": "math"}
+{"text": "How do I find the limit as x approaches infinity?", "domain": "math"}
+{"text": "What is the probability of rolling a 7 with two dice?", "domain": "math"}
+{"text": "How do I calculate standard deviation?", "domain": "math"}
+{"text": "What is the quadratic formula?", "domain": "math"}
+{"text": "How do I convert between radians and degrees?", "domain": "math"}
+{"text": "What is the area of a circle with radius 5?", "domain": "math"}
+{"text": "How do I factor a polynomial?", "domain": "math"}
+{"text": "What is the sum of an arithmetic series?", "domain": "math"}
+{"text": "How do I solve logarithmic equations?", "domain": "math"}
+{"text": "What is the cross product of two vectors?", "domain": "math"}
+{"text": "How do I find eigenvalues of a matrix?", "domain": "math"}
+{"text": "What is the Taylor series expansion of e^x?", "domain": "math"}
+{"text": "How do I calculate permutations and combinations?", "domain": "math"}
+{"text": "What is the binomial distribution?", "domain": "math"}
+{"text": "How do I solve differential equations?", "domain": "math"}
+{"text": "What is the dot product of vectors?", "domain": "math"}
+{"text": "How do I calculate the mean, median, and mode?", "domain": "math"}
+{"text": "What is the formula for exponential growth?", "domain": "math"}
+{"text": "How do I graph a parabola?", "domain": "math"}
+{"text": "What is the chain rule in calculus?", "domain": "math"}
+{"text": "How do I find the inverse of a function?", "domain": "math"}
+{"text": "What is the law of cosines?", "domain": "math"}
+{"text": "How do I calculate z-scores?", "domain": "math"}
+{"text": "What's a good recipe for pasta?", "domain": "general"}
+{"text": "Tell me a joke", "domain": "general"}
+{"text": "What's the weather like today?", "domain": "general"}
+{"text": "Who won the Super Bowl last year?", "domain": "general"}
+{"text": "What time is it in Tokyo?", "domain": "general"}
+{"text": "Can you recommend a good movie?", "domain": "general"}
+{"text": "How do I tie a tie?", "domain": "general"}
+{"text": "What's the capital of France?", "domain": "general"}
+{"text": "How do I make coffee?", "domain": "general"}
+{"text": "What's a good book to read?", "domain": "general"}
+{"text": "How are you doing today?", "domain": "general"}
+{"text": "What's your favorite color?", "domain": "general"}
+{"text": "Tell me about yourself", "domain": "general"}
+{"text": "What should I have for dinner?", "domain": "general"}
+{"text": "Can you help me with my shopping list?", "domain": "general"}
+{"text": "What's the meaning of life?", "domain": "general"}
+{"text": "How do I learn a new language?", "domain": "general"}
+{"text": "What's a good gift for my mom?", "domain": "general"}
+{"text": "How do I train my dog?", "domain": "general"}
+{"text": "What's the best way to travel to Europe?", "domain": "general"}
+{"text": "How do I start meditating?", "domain": "general"}
+{"text": "What's the difference between coffee and espresso?", "domain": "general"}
+{"text": "How do I organize my closet?", "domain": "general"}
+{"text": "What's a good hobby to pick up?", "domain": "general"}
+{"text": "How do I make friends as an adult?", "domain": "general"}
+{"text": "What's the best way to save money?", "domain": "general"}
+{"text": "How do I plan a birthday party?", "domain": "general"}
+{"text": "What's a good exercise routine for beginners?", "domain": "general"}
+{"text": "How do I clean my laptop screen?", "domain": "general"}
+{"text": "What's the best way to learn guitar?", "domain": "general"}
+{"text": "Should I invest in stocks or bonds?", "domain": "finance"}
+{"text": "How do I calculate my tax liability?", "domain": "finance"}
+{"text": "What is a 401k and how does it work?", "domain": "finance"}
+{"text": "How do I create a budget?", "domain": "finance"}
+{"text": "What is compound interest?", "domain": "finance"}
+{"text": "Should I refinance my mortgage?", "domain": "finance"}
+{"text": "What are the best ETFs to invest in?", "domain": "finance"}
+{"text": "How do I read a financial statement?", "domain": "finance"}
+{"text": "What is the difference between a Roth IRA and traditional IRA?", "domain": "finance"}
+{"text": "How much should I save for retirement?", "domain": "finance"}
+{"text": "What is dollar cost averaging?", "domain": "finance"}
+{"text": "How do dividends work?", "domain": "finance"}
+{"text": "What is a credit score and how to improve it?", "domain": "finance"}
+{"text": "Should I pay off debt or invest?", "domain": "finance"}
+{"text": "What is the P/E ratio?", "domain": "finance"}
+{"text": "How do I analyze a stock?", "domain": "finance"}
+{"text": "What is a mutual fund?", "domain": "finance"}
+{"text": "How does inflation affect my savings?", "domain": "finance"}
+{"text": "What is capital gains tax?", "domain": "finance"}
+{"text": "How do I build an emergency fund?", "domain": "finance"}
+

@@ -568,6 +568,79 @@ python main.py                    # Runs on http://localhost:8020
 - `vision/start_native.bat` - Quick start for Windows
 - `frontend/src/components/VoiceInterface.tsx` - Eye toggle UI
 
+### 12c. Domain Routing - Specialist Models
+
+Gala can automatically switch to specialist models based on the domain of a question.
+
+**Supported Domains:**
+| Domain | Specialist Model | Triggers |
+|--------|------------------|----------|
+| 🏥 Medical | `meditron:7b` | symptoms, medication, diagnosis, treatment |
+| ⚖️ Legal | `saul-instruct:7b` | lawsuit, contract, rights, liability |
+| 💻 Coding | `qwen2.5-coder:7b` | code, debug, function, algorithm |
+| 🔢 Math | `mathstral:7b` | calculate, equation, derivative, solve |
+| 💰 Finance | (disabled) | invest, stock, budget, tax |
+
+**How It Works:**
+```
+User: "What are the drug interactions between warfarin and aspirin?"
+                    ↓
+         ┌─────────────────────┐
+         │  Pattern Detection  │  → "drug", "warfarin", "aspirin"
+         │  Confidence: 0.75   │
+         └──────────┬──────────┘
+                    ↓
+         ┌─────────────────────┐
+         │  Domain: MEDICAL    │
+         │  Swap to meditron   │
+         └──────────┬──────────┘
+                    ↓
+         "Let me tap into my medical expertise..."
+                    ↓
+         [Detailed, accurate medical response]
+```
+
+**Hybrid Approach (Options A + C):**
+1. **Pattern Matching** - Fast detection of obvious domain indicators
+2. **Self-Routing** - Gala can request specialist help with `[NEED:medical]`
+
+**API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/routing/specialists` | List enabled specialists |
+| POST | `/api/routing/detect` | Test domain detection on a query |
+| POST | `/api/routing/configure` | Enable/configure a specialist |
+
+**Configuration (Settings):**
+```python
+domain_routing_enabled: bool = True
+specialist_models:
+  medical: "meditron:7b"
+  legal: "saul-instruct:7b"
+  coding: "qwen2.5-coder:7b"
+  math: "mathstral:7b"
+```
+
+**Required Models (download with Ollama):**
+```bash
+ollama pull meditron:7b        # Medical specialist
+ollama pull saul-instruct:7b   # Legal specialist  
+ollama pull qwen2.5-coder:7b   # Coding specialist
+ollama pull mathstral:7b       # Math specialist
+```
+
+**Training a Classifier (Optional):**
+Training data and scripts are in `training/`:
+```bash
+cd training
+pip install sentence-transformers scikit-learn
+python train_classifier.py
+```
+
+**Files:**
+- `backend/app/services/domain_router.py` - Domain detection service
+- `training/` - Classifier training data and scripts
+
 ### 13. Multi-Language Support
 
 Kokoro TTS supports 9 languages. Whisper can auto-detect language.
@@ -721,6 +794,7 @@ docker start wyoming-whisper piper
 | **Vision Live (Gala's Eyes)** | Real-time face/emotion detection via DeepFace, toggle via UI or voice |
 | **Face Recognition** | Owner enrollment, friend/family registration, access control based on identity |
 | **Privacy Access Control** | Owner: full access, Friends: limited, Strangers: denied |
+| **Domain Routing** | Auto-switch to specialist models (medical, legal, coding, math) based on query |
 
 ### 📋 Phase 6: Future Features
 
@@ -731,6 +805,7 @@ docker start wyoming-whisper piper
 | **Multiple Personas** | Switch between Gala "personalities" | Medium |
 | **Tool Calling** | File ops, code execution, smart home | High |
 | ~~**Emotion Detection**~~ | ~~Analyze user sentiment~~ | ✅ Done via Vision Live |
+| **Trained Classifier** | ML-based domain detection (training data provided in `training/`) | Low |
 
 **Not Planned** (per user preference):
 - Wake Word ("Hey Gala") - Privacy concern, user prefers manual activation

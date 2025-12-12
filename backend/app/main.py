@@ -21,6 +21,7 @@ from .services.model_manager import model_manager
 from .services.background_worker import background_worker
 from .services.user_profile import user_profile_service
 from .services.vision_live import vision_live_service
+from .services.domain_router import domain_router, Domain
 from .models.schemas import UserSettings
 
 
@@ -807,6 +808,70 @@ async def check_owner():
         )
 
 
+# ============== Domain Routing Endpoints ==============
+
+@app.get("/api/routing/specialists")
+async def get_specialists():
+    """Get list of enabled specialist domains and models"""
+    return {
+        "specialists": domain_router.get_enabled_specialists(),
+        "routing_enabled": settings_manager.load().domain_routing_enabled
+    }
+
+
+@app.post("/api/routing/detect")
+async def detect_domain(text: str = Body(..., embed=True)):
+    """Detect the domain of a query (for testing/debugging)"""
+    domain, confidence, model = domain_router.detect_domain(text)
+    return {
+        "domain": domain.value,
+        "confidence": confidence,
+        "specialist_model": model,
+        "would_route": model is not None and confidence >= 0.4
+    }
+
+
+@app.post("/api/routing/configure")
+async def configure_routing(
+    domain: str = Body(...),
+    model: str = Body(...),
+    enabled: bool = Body(True)
+):
+    """Configure a specialist model for a domain"""
+    try:
+        domain_enum = Domain(domain)
+        domain_router.configure_specialist(domain_enum, model, enabled)
+        
+        # Also update user settings
+        user_settings = settings_manager.load()
+        spec_models = user_settings.specialist_models
+        
+        if domain == "medical":
+            spec_models.medical = model if enabled else ""
+        elif domain == "legal":
+            spec_models.legal = model if enabled else ""
+        elif domain == "coding":
+            spec_models.coding = model if enabled else ""
+        elif domain == "math":
+            spec_models.math = model if enabled else ""
+        elif domain == "finance":
+            spec_models.finance = model if enabled else ""
+        elif domain == "science":
+            spec_models.science = model if enabled else ""
+        elif domain == "creative":
+            spec_models.creative = model if enabled else ""
+        
+        user_settings.specialist_models = spec_models
+        settings_manager.save(user_settings)
+        
+        return {"success": True, "domain": domain, "model": model, "enabled": enabled}
+    except ValueError:
+        return JSONResponse(
+            status_code=400,
+            content={"success": False, "error": f"Unknown domain: {domain}"}
+        )
+
+
 # ============== WebSocket Handler ==============
 
 class ConversationState:
@@ -1492,6 +1557,57 @@ async def generate_response(
     if rag_context:
         system_prompt = system_prompt + rag_context
     
+    # ============== DOMAIN ROUTING ==============
+    # Detect if we should use a specialist model
+    active_model = user_settings.selected_model
+    specialist_used = False
+    
+    if user_settings.domain_routing_enabled:
+        # Get the latest user message
+        user_messages = [m for m in state.messages if m.get("role") == "user"]
+        if user_messages:
+            last_user_msg = user_messages[-1].get("content", "")
+            
+            # Detect domain
+            detected_domain, confidence, specialist_model = domain_router.detect_domain(last_user_msg)
+            
+            if specialist_model and confidence >= 0.4:
+                # Check if the specialist model is configured and different from current
+                spec_models = user_settings.specialist_models
+                model_map = {
+                    Domain.MEDICAL: spec_models.medical,
+                    Domain.LEGAL: spec_models.legal,
+                    Domain.CODING: spec_models.coding,
+                    Domain.MATH: spec_models.math,
+                    Domain.FINANCE: spec_models.finance,
+                    Domain.SCIENCE: spec_models.science,
+                    Domain.CREATIVE: spec_models.creative,
+                }
+                
+                configured_model = model_map.get(detected_domain, "")
+                
+                if configured_model and configured_model != active_model:
+                    print(f"Domain routing: {detected_domain.value} -> {configured_model} (confidence: {confidence:.2f})")
+                    
+                    # Send transition message to user
+                    handoff_msg = domain_router.get_handoff_message(detected_domain)
+                    await websocket.send_json({
+                        "type": "domain_switch",
+                        "domain": detected_domain.value,
+                        "model": configured_model,
+                        "message": handoff_msg,
+                        "confidence": confidence
+                    })
+                    
+                    # Switch to specialist model
+                    active_model = configured_model
+                    specialist_used = True
+        
+        # Add self-routing instructions to system prompt
+        routing_prompt = domain_router.get_routing_prompt_addition()
+        if routing_prompt:
+            system_prompt += routing_prompt
+    
     # Stream LLM response with sentence-level TTS for lower latency
     full_response = ""
     sentence_buffer = ""
@@ -1505,7 +1621,7 @@ async def generate_response(
     try:
         async for chunk in ollama_service.chat_stream(
             messages=state.messages,
-            model=user_settings.selected_model,
+            model=active_model,
             system_prompt=system_prompt,
             enable_thinking=False
         ):
