@@ -1,0 +1,22 @@
+# Native Windows install (with webcam support)
+
+# Web framework
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+
+# DeepFace - let it install its own TensorFlow
+deepface>=0.0.89
+
+# OpenCV with GUI support (not headless - for webcam)
+opencv-python>=4.8.0
+
+# Image processing
+Pillow>=10.0.0
+
+# Async support
+aiofiles>=23.2.1
+python-multipart>=0.0.6
+
+# HTTP client
+httpx>=0.26.0
+
