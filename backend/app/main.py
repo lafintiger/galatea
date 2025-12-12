@@ -20,6 +20,7 @@ from .services.embedding import embedding_service
 from .services.model_manager import model_manager
 from .services.background_worker import background_worker
 from .services.user_profile import user_profile_service
+from .services.vision_live import vision_live_service
 from .models.schemas import UserSettings
 
 
@@ -665,6 +666,66 @@ async def get_vision_models():
     }
 
 
+# ============== Vision Live Endpoints (Gala's Eyes) ==============
+
+@app.get("/api/vision/live/health")
+async def vision_live_health():
+    """Check if the live vision service is available"""
+    is_healthy = await vision_live_service.health_check()
+    return {
+        "available": is_healthy,
+        "host": settings.vision_host,
+        "port": settings.vision_port
+    }
+
+
+@app.post("/api/vision/live/start")
+async def vision_live_start():
+    """Open Gala's eyes - start real-time vision analysis"""
+    try:
+        result = await vision_live_service.start()
+        # Also update user settings
+        user_settings = settings_manager.load()
+        user_settings.vision_enabled = True
+        settings_manager.save(user_settings)
+        return {"success": True, "message": "Eyes opened", **result}
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.post("/api/vision/live/stop")
+async def vision_live_stop():
+    """Close Gala's eyes - stop real-time vision analysis"""
+    try:
+        result = await vision_live_service.stop()
+        # Also update user settings
+        user_settings = settings_manager.load()
+        user_settings.vision_enabled = False
+        settings_manager.save(user_settings)
+        return {"success": True, "message": "Eyes closed", **result}
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
+@app.get("/api/vision/live/status")
+async def vision_live_status():
+    """Get current vision status and latest analysis"""
+    try:
+        status = await vision_live_service.get_status()
+        return status
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"success": False, "error": str(e)}
+        )
+
+
 # ============== WebSocket Handler ==============
 
 class ConversationState:
@@ -742,6 +803,56 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "status", "state": "speaking"})
                     await speak_response(websocket, state, text, user_settings)
                     await websocket.send_json({"type": "status", "state": "idle"})
+            
+            elif msg_type == "open_eyes":
+                # Start real-time vision (Gala's eyes)
+                try:
+                    result = await vision_live_service.start()
+                    user_settings.vision_enabled = True
+                    settings_manager.save(user_settings)
+                    await websocket.send_json({
+                        "type": "vision_status",
+                        "eyes_open": True,
+                        "message": "I can see you now"
+                    })
+                    print("👁️ Gala's eyes opened")
+                except Exception as e:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Could not open eyes: {str(e)}"
+                    })
+            
+            elif msg_type == "close_eyes":
+                # Stop real-time vision
+                try:
+                    result = await vision_live_service.stop()
+                    user_settings.vision_enabled = False
+                    settings_manager.save(user_settings)
+                    await websocket.send_json({
+                        "type": "vision_status",
+                        "eyes_open": False,
+                        "message": "Eyes closed"
+                    })
+                    print("😴 Gala's eyes closed")
+                except Exception as e:
+                    await websocket.send_json({
+                        "type": "error",
+                        "message": f"Could not close eyes: {str(e)}"
+                    })
+            
+            elif msg_type == "get_vision_status":
+                # Get current vision analysis
+                try:
+                    status = await vision_live_service.get_status()
+                    await websocket.send_json({
+                        "type": "vision_update",
+                        "data": status
+                    })
+                except Exception as e:
+                    await websocket.send_json({
+                        "type": "vision_update",
+                        "data": {"analyzing": False, "error": str(e)}
+                    })
     
     except WebSocketDisconnect:
         print(f"🔌 Client disconnected")
@@ -788,6 +899,13 @@ async def handle_voice_input(
             "text": transcript,
             "final": True
         })
+        
+        # Check if this is a vision command (open/close eyes)
+        vision_cmd, vision_response = detect_vision_command(transcript)
+        if vision_cmd:
+            print(f"👁️ Detected vision command: '{vision_cmd}'")
+            await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
+            return
         
         # Check if this is a search request
         is_search, search_query = detect_search_intent(transcript)
@@ -959,6 +1077,100 @@ def detect_search_intent(text: str) -> tuple[bool, str]:
     return False, ""
 
 
+def detect_vision_command(text: str) -> tuple[str | None, str]:
+    """Detect if the user is asking to open/close Gala's eyes.
+    
+    Returns:
+        (command, response_text) where command is 'open', 'close', or None
+    """
+    text_lower = text.lower().strip()
+    
+    # Open eyes patterns
+    open_patterns = [
+        r"open\s+(?:your\s+)?eyes",
+        r"(?:can you\s+)?see\s+me",
+        r"look\s+at\s+me",
+        r"(?:start|enable|turn on)\s+(?:your\s+)?(?:vision|eyes|camera|webcam)",
+        r"(?:i\s+)?want\s+you\s+to\s+see",
+        r"watch\s+me",
+        r"eyes\s+open",
+    ]
+    
+    for pattern in open_patterns:
+        if re.search(pattern, text_lower):
+            return "open", "Opening my eyes... I can see you now."
+    
+    # Close eyes patterns
+    close_patterns = [
+        r"close\s+(?:your\s+)?eyes",
+        r"(?:stop|disable|turn off)\s+(?:your\s+)?(?:vision|eyes|camera|webcam)",
+        r"(?:don't|do not)\s+(?:look|watch|see)",
+        r"(?:stop\s+)?look(?:ing)?\s+at\s+me",
+        r"eyes\s+(?:closed|shut)",
+        r"shut\s+(?:your\s+)?eyes",
+        r"(?:i\s+)?(?:don't\s+)?want\s+(?:you\s+to\s+)?(?:stop\s+)?see(?:ing)?",
+    ]
+    
+    for pattern in close_patterns:
+        if re.search(pattern, text_lower):
+            return "close", "Closing my eyes. I can no longer see."
+    
+    return None, ""
+
+
+async def handle_vision_command(
+    websocket: WebSocket,
+    command: str,
+    response_text: str,
+    user_settings: UserSettings,
+    state
+):
+    """Handle vision open/close commands"""
+    try:
+        if command == "open":
+            await vision_live_service.start()
+            user_settings.vision_enabled = True
+            settings_manager.save(user_settings)
+            await websocket.send_json({
+                "type": "vision_status",
+                "eyes_open": True,
+                "message": response_text
+            })
+            print("👁️ Gala's eyes opened via voice command")
+        elif command == "close":
+            await vision_live_service.stop()
+            user_settings.vision_enabled = False
+            settings_manager.save(user_settings)
+            await websocket.send_json({
+                "type": "vision_status",
+                "eyes_open": False,
+                "message": response_text
+            })
+            print("😴 Gala's eyes closed via voice command")
+        
+        # Add to conversation and speak the response
+        state.messages.append({
+            "role": "user",
+            "content": f"[Vision command: {command} eyes]"
+        })
+        state.messages.append({
+            "role": "assistant",
+            "content": response_text
+        })
+        
+        # Speak the response
+        await websocket.send_json({"type": "status", "state": "speaking"})
+        await speak_response(websocket, state, response_text, user_settings)
+        await websocket.send_json({"type": "status", "state": "idle"})
+        
+    except Exception as e:
+        error_msg = f"I couldn't {'open' if command == 'open' else 'close'} my eyes: {str(e)}"
+        await websocket.send_json({
+            "type": "error",
+            "message": error_msg
+        })
+
+
 async def handle_text_input(
     websocket: WebSocket,
     state: ConversationState,
@@ -969,6 +1181,12 @@ async def handle_text_input(
     text = data.get("content", "").strip()
     
     if not text:
+        return
+    
+    # Check if this is a vision command (open/close eyes)
+    vision_cmd, vision_response = detect_vision_command(text)
+    if vision_cmd:
+        await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
         return
     
     # Check if this is a search request
@@ -1070,7 +1288,12 @@ async def generate_response(
     user_profile_summary = user_profile_service.get_profile_summary()
     user_name = user_profile_service.load_profile().user_name or "User"
     
-    # Build system prompt with rich time context and user profile
+    # Get vision context if eyes are open
+    vision_context = ""
+    if user_settings.vision_enabled and vision_live_service.is_active:
+        vision_context = vision_live_service.get_emotion_context()
+    
+    # Build system prompt with rich time context, user profile, and vision
     time_context = get_time_context()
     system_prompt = ollama_service.build_system_prompt(
         assistant_name=user_settings.assistant_name,
@@ -1080,6 +1303,10 @@ async def generate_response(
         time_context=time_context,
         user_profile=user_profile_summary if user_profile_summary else None,
     )
+    
+    # Inject vision context if available
+    if vision_context:
+        system_prompt += f"\n\nVISUAL AWARENESS:\n{vision_context}\nUse this visual context naturally - acknowledge emotions appropriately but don't constantly reference what you see."
     
     # Try to get relevant context from RAG (if embeddings exist)
     rag_context = ""

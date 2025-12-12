@@ -12,7 +12,7 @@
 - **Customizable**: User can choose LLM models, voices, and personality
 - **Extensible**: Architecture designed for future integrations (vision, tools, memory)
 
-### Current Status: Phase 4 ✅
+### Current Status: Phase 5 ✅
 - Voice input (STT) via Faster-Whisper
 - LLM chat via Ollama
 - Voice output (TTS) via **Piper** (fast) or **Kokoro** (HD quality)
@@ -30,6 +30,7 @@
 - **Search Results Panel** - Shows Perplexica AI summary + clickable source links
 - **Multi-Language Support** - 9 languages via Kokoro (EN, JP, CN, FR, ES, IT, PT, HI)
 - **Vision** - Screenshot/upload images, Gala describes what she sees
+- **Vision Live (Gala's Eyes)** - Real-time face/emotion detection via DeepFace
 
 ---
 
@@ -437,6 +438,75 @@ ollama pull deepseek-ocr:latest        # Text extraction (6.7GB)
 ollama pull huihui_ai/qwen3-vl-abliterated:2b  # Uncensored fallback
 ```
 
+### 12b. Vision Live - Gala's Eyes (Real-time Face/Emotion Analysis)
+
+Gala can "see" the user in real-time using the galatea-vision service (DeepFace).
+
+**Capabilities:**
+| Feature | Description |
+|---------|-------------|
+| 😊 Emotion | 7 emotions: happy, sad, angry, fear, surprise, disgust, neutral |
+| 🎂 Age | Estimated age (±5 years) |
+| ⚧ Gender | Male/Female with confidence |
+| 👤 Presence | Is someone at the screen? |
+| 👀 Attention | Are they looking at the screen? |
+
+**Toggle Methods:**
+1. **UI Button**: Eye toggle button in text input bar
+2. **Voice**: "Gala, open your eyes" / "Gala, close your eyes"
+3. **API**: POST `/api/vision/live/start` and `/api/vision/live/stop`
+
+**Voice Commands:**
+| Pattern | Action |
+|---------|--------|
+| "Open your eyes" | Start vision |
+| "Can you see me?" | Start vision |
+| "Look at me" | Start vision |
+| "Close your eyes" | Stop vision |
+| "Stop looking at me" | Stop vision |
+| "Don't watch me" | Stop vision |
+
+**How It Works:**
+```
+User says "Open your eyes" → detect_vision_command() → vision_live_service.start()
+                                                              ↓
+                                                      galatea-vision (DeepFace)
+                                                              ↓
+                                                      Webcam analysis starts
+                                                              ↓
+                                     Emotion context injected into system prompt
+                                                              ↓
+                              Gala naturally responds to user's emotional state
+```
+
+**API Endpoints:**
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/vision/live/health` | Check if vision service is available |
+| POST | `/api/vision/live/start` | Open eyes (start analysis) |
+| POST | `/api/vision/live/stop` | Close eyes (stop analysis) |
+| GET | `/api/vision/live/status` | Get current status + latest result |
+
+**WebSocket Messages:**
+| Type | Direction | Description |
+|------|-----------|-------------|
+| `open_eyes` | Client→Server | Request to start vision |
+| `close_eyes` | Client→Server | Request to stop vision |
+| `get_vision_status` | Client→Server | Request current status |
+| `vision_status` | Server→Client | Eyes open/closed confirmation |
+| `vision_update` | Server→Client | Latest analysis results |
+
+**Privacy First:**
+- Eyes are **closed by default**
+- User must explicitly open them
+- No data leaves the machine
+- Can be toggled off anytime
+
+**Files:**
+- `backend/app/services/vision_live.py` - Vision service client
+- `vision/` - Docker service with DeepFace
+- `frontend/src/components/VoiceInterface.tsx` - Eye toggle UI
+
 ### 13. Multi-Language Support
 
 Kokoro TTS supports 9 languages. Whisper can auto-detect language.
@@ -586,8 +656,10 @@ docker start wyoming-whisper piper
 | **Vision** | Screenshot/upload images, auto model selection (granite/deepseek-ocr/qwen-vl) |
 | **Truth-Seeking System Prompt** | User-primacy, no moralizing, no political sanitization, full transparency |
 | **User Profile / Onboarding** | 30+ questions across 9 categories, pausable, builds personalized context |
+| **Docker Compose Suite** | One-command deployment of full Galatea AI Suite |
+| **Vision Live (Gala's Eyes)** | Real-time face/emotion detection via DeepFace, toggle via UI or voice |
 
-### 📋 Phase 5: Future Features
+### 📋 Phase 6: Future Features
 
 | Feature | Description | Complexity |
 |---------|-------------|------------|
@@ -595,7 +667,7 @@ docker start wyoming-whisper piper
 | **Save Search to RAG** | Store search results in knowledge base for future reference | Low |
 | **Multiple Personas** | Switch between Gala "personalities" | Medium |
 | **Tool Calling** | File ops, code execution, smart home | High |
-| **Emotion Detection** | Analyze user sentiment | High |
+| ~~**Emotion Detection**~~ | ~~Analyze user sentiment~~ | ✅ Done via Vision Live |
 
 **Not Planned** (per user preference):
 - Wake Word ("Hey Gala") - Privacy concern, user prefers manual activation

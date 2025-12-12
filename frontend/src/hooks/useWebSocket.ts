@@ -24,6 +24,8 @@ export function useWebSocket() {
     setSearchResults,
     setIsAnalyzingImage,
     setVisionResult,
+    setVisionLiveEnabled,
+    setVisionLiveStatus,
   } = useConversationStore()
   
   const { setSettings, setModels, setVoices } = useSettingsStore()
@@ -194,6 +196,25 @@ export function useWebSocket() {
       case 'error':
         setError(data.message)
         setConversationState('idle')
+        break
+      
+      case 'vision_status':
+        console.log('👁️ Vision status:', data)
+        setVisionLiveEnabled(data.eyes_open)
+        break
+      
+      case 'vision_update':
+        if (data.data?.latest_result) {
+          const r = data.data.latest_result
+          setVisionLiveStatus({
+            present: r.present || false,
+            emotion: r.emotion || 'unknown',
+            emotionConfidence: r.emotion_confidence || 0,
+            age: r.age || 0,
+            gender: r.gender || 'unknown',
+            attentive: r.attentive || false,
+          })
+        }
         break
     }
   }, [])
@@ -413,6 +434,22 @@ export function useWebSocket() {
     }))
   }, [])
 
+  const openEyes = useCallback(() => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return
+    
+    wsRef.current.send(JSON.stringify({
+      type: 'open_eyes',
+    }))
+  }, [])
+
+  const closeEyes = useCallback(() => {
+    if (wsRef.current?.readyState !== WebSocket.OPEN) return
+    
+    wsRef.current.send(JSON.stringify({
+      type: 'close_eyes',
+    }))
+  }, [])
+
   const fetchModels = async () => {
     try {
       const response = await fetch('/api/models')
@@ -458,6 +495,8 @@ export function useWebSocket() {
     clearHistory,
     webSearch,
     analyzeImage,
+    openEyes,
+    closeEyes,
   }
 }
 

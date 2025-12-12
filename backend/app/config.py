@@ -43,6 +43,10 @@ class Settings(BaseSettings):
     perplexica_chat_model: str = "ministral-3:3b"  # Fast non-thinking model for search
     perplexica_embedding_model: str = "bge-m3:latest"  # Embedding model for search
     
+    # Vision Service (galatea-vision - DeepFace face/emotion analysis)
+    vision_host: str = "localhost"
+    vision_port: int = 8020
+    
     # Database
     database_url: str = "sqlite+aiosqlite:///./data/galatea.db"
     chroma_path: str = "./data/chroma"

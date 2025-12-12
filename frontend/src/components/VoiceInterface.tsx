@@ -13,11 +13,13 @@ interface VoiceInterfaceProps {
     interrupt: () => void
     webSearch: (query: string, followUp?: string, provider?: 'auto' | 'searxng' | 'perplexica') => void
     analyzeImage: (imageBase64: string, prompt: string) => void
+    openEyes: () => void
+    closeEyes: () => void
   }
 }
 
 export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
-  const { conversationState, currentResponse, searchQuery, statusDetail, thinkingContent, isAnalyzingImage } = useConversationStore()
+  const { conversationState, currentResponse, searchQuery, statusDetail, thinkingContent, isAnalyzingImage, visionLiveEnabled, visionLiveStatus } = useConversationStore()
   const { settings } = useSettingsStore()
   const [showThinking, setShowThinking] = useState(false)
   const { isRecording, isListening, startRecording, stopRecording, startVAD, stopVAD, audioLevel } = useAudioRecorder()
@@ -216,8 +218,40 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
 
   const statusInfo = getStatusInfo()
 
+  // Get emotion emoji
+  const getEmotionEmoji = (emotion: string) => {
+    const emotions: Record<string, string> = {
+      happy: '😊',
+      sad: '😢',
+      angry: '😠',
+      fear: '😨',
+      surprise: '😲',
+      disgust: '🤢',
+      neutral: '😐',
+    }
+    return emotions[emotion.toLowerCase()] || '👤'
+  }
+
   return (
     <div className="flex flex-col items-center gap-8 w-full max-w-2xl">
+      {/* Vision Status - Shows when eyes are open */}
+      {visionLiveEnabled && visionLiveStatus && (
+        <div className="flex items-center gap-3 px-4 py-2 rounded-lg bg-green-500/10 border border-green-500/30">
+          <span className="text-2xl">{getEmotionEmoji(visionLiveStatus.emotion)}</span>
+          <div className="flex flex-col">
+            <span className="text-xs text-green-400/70">
+              👁️ {settings.assistant_nickname}'s eyes are open
+            </span>
+            <span className="text-sm text-green-400">
+              {visionLiveStatus.present 
+                ? `Seeing: ${visionLiveStatus.emotion}${visionLiveStatus.attentive ? ' (engaged)' : ''}`
+                : 'No one in view'
+              }
+            </span>
+          </div>
+        </div>
+      )}
+      
       {/* Status */}
       <div className="flex flex-col items-center gap-2">
         <div className="flex items-center gap-3">
@@ -388,6 +422,24 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
           onAnalyze={websocket.analyzeImage}
           isAnalyzing={isAnalyzingImage}
         />
+        {/* Eye Toggle (Vision Live) */}
+        <button
+          type="button"
+          onClick={() => visionLiveEnabled ? websocket.closeEyes() : websocket.openEyes()}
+          disabled={conversationState !== 'idle'}
+          className={`px-4 py-3 rounded-lg border transition-colors disabled:opacity-50 ${
+            visionLiveEnabled 
+              ? 'border-green-500/50 bg-green-500/20 hover:bg-green-500/30' 
+              : 'border-slate-500/50 bg-slate-500/10 hover:bg-slate-500/20'
+          }`}
+          title={visionLiveEnabled ? "Close Eyes (Stop Vision)" : "Open Eyes (Start Vision)"}
+        >
+          {visionLiveEnabled ? (
+            <Eye className="w-5 h-5 text-green-400" />
+          ) : (
+            <EyeOff className="w-5 h-5 text-slate-400" />
+          )}
+        </button>
         <button
           type="submit"
           disabled={!textInput.trim() || conversationState !== 'idle'}

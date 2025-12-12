@@ -487,3 +487,5 @@ class UserProfileService:
 # Singleton instance
 user_profile_service = UserProfileService()
 
+
+

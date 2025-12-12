@@ -24,6 +24,9 @@ class UserSettings(BaseModel):
     voice_speed: float = 1.0  # length_scale: 0.5-2.0 (lower=faster, higher=slower)
     voice_variation: float = 0.8  # noise_scale: 0-1 (higher=more expressive)
     voice_phoneme_var: float = 0.6  # noise_w: 0-1 (higher=more natural timing)
+    
+    # Vision (Gala's Eyes) - real-time face/emotion analysis
+    vision_enabled: bool = False  # Eyes open/closed state
 
 
 class Message(BaseModel):

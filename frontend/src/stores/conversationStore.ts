@@ -45,6 +45,17 @@ interface ConversationStoreState {
   isAnalyzingImage: boolean
   visionResult: { description: string; model: string } | null
   
+  // Vision Live (Gala's Eyes)
+  visionLiveEnabled: boolean
+  visionLiveStatus: {
+    present: boolean
+    emotion: string
+    emotionConfidence: number
+    age: number
+    gender: string
+    attentive: boolean
+  } | null
+  
   setConnectionStatus: (status: ConnectionStatus) => void
   setConversationState: (state: ConversationState) => void
   addMessage: (message: Message) => void
@@ -71,6 +82,10 @@ interface ConversationStoreState {
   // Vision actions
   setIsAnalyzingImage: (analyzing: boolean) => void
   setVisionResult: (result: { description: string; model: string } | null) => void
+  
+  // Vision Live actions
+  setVisionLiveEnabled: (enabled: boolean) => void
+  setVisionLiveStatus: (status: ConversationStoreState['visionLiveStatus']) => void
 }
 
 export const useConversationStore = create<ConversationStoreState>((set) => ({
@@ -93,6 +108,10 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   // Vision
   isAnalyzingImage: false,
   visionResult: null,
+  
+  // Vision Live
+  visionLiveEnabled: false,
+  visionLiveStatus: null,
   
   setConnectionStatus: (connectionStatus) => set({ connectionStatus }),
   
@@ -189,6 +208,10 @@ export const useConversationStore = create<ConversationStoreState>((set) => ({
   // Vision actions
   setIsAnalyzingImage: (isAnalyzingImage) => set({ isAnalyzingImage }),
   setVisionResult: (visionResult) => set({ visionResult }),
+  
+  // Vision Live actions
+  setVisionLiveEnabled: (visionLiveEnabled) => set({ visionLiveEnabled }),
+  setVisionLiveStatus: (visionLiveStatus) => set({ visionLiveStatus }),
 }))
 
 
