@@ -107,7 +107,7 @@ async def warmup_model(model_name: str):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Application lifespan handler"""
-    print("🌟 Galatea is waking up...")
+    print("* Galatea is waking up...")
     print(f"   Ollama: {settings.ollama_base_url}")
     print(f"   Whisper: {settings.whisper_host}:{settings.whisper_port}")
     print(f"   Piper: {settings.piper_host}:{settings.piper_port}")
@@ -126,7 +126,7 @@ async def lifespan(app: FastAPI):
     
     # Stop background worker
     background_worker.stop()
-    print("💤 Galatea is going to sleep...")
+    print("* Galatea is going to sleep...")
 
 
 app = FastAPI(
