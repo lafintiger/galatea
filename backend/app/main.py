@@ -90,17 +90,17 @@ def clean_for_speech(text: str) -> str:
 
 async def warmup_model(model_name: str):
     """Pre-load the LLM model into VRAM for instant responses"""
-    print(f"   🔥 Warming up model: {model_name}")
+    print(f"   [Warmup] Loading model: {model_name}")
     try:
         # Use model_manager to load the model (handles VRAM properly)
         success = await model_manager.load_model(model_name)
         if success:
-            print(f"   ✅ Model {model_name} is ready!")
+            print(f"   [OK] Model {model_name} is ready!")
         else:
-            print(f"   ⚠️ Model warmup completed (may not be loaded)")
+            print(f"   [WARN] Model warmup completed (may not be loaded)")
         return success
     except Exception as e:
-        print(f"   ⚠️ Model warmup failed: {e}")
+        print(f"   [WARN] Model warmup failed: {e}")
         print(f"   (First message may have a delay while model loads)")
         return False
 
@@ -960,7 +960,7 @@ async def websocket_endpoint(websocket: WebSocket):
     state = ConversationState()
     user_settings = settings_manager.load()
     
-    print(f"🔌 Client connected")
+    print(f"[WS] Client connected")
     
     try:
         # Send initial status
@@ -1030,7 +1030,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "eyes_open": True,
                         "message": "I can see you now"
                     })
-                    print("👁️ Gala's eyes opened")
+                    print("[Vision] Gala's eyes opened")
                 except Exception as e:
                     await websocket.send_json({
                         "type": "error",
@@ -1048,7 +1048,7 @@ async def websocket_endpoint(websocket: WebSocket):
                         "eyes_open": False,
                         "message": "Eyes closed"
                     })
-                    print("😴 Gala's eyes closed")
+                    print("[Vision] Gala's eyes closed")
                 except Exception as e:
                     await websocket.send_json({
                         "type": "error",
@@ -1070,9 +1070,9 @@ async def websocket_endpoint(websocket: WebSocket):
                     })
     
     except WebSocketDisconnect:
-        print(f"🔌 Client disconnected")
+        print(f"[WS] Client disconnected")
     except Exception as e:
-        print(f"❌ WebSocket error: {e}")
+        print(f"[ERROR] WebSocket error: {e}")
         await websocket.close(code=1011, reason=str(e))
 
 
@@ -1118,7 +1118,7 @@ async def handle_voice_input(
         # Check if this is a vision command (open/close eyes)
         vision_cmd, vision_response = detect_vision_command(transcript)
         if vision_cmd:
-            print(f"👁️ Detected vision command: '{vision_cmd}'")
+            print(f"[Vision] Detected vision command: '{vision_cmd}'")
             await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
             return
         
@@ -1127,7 +1127,7 @@ async def handle_voice_input(
         
         if is_search and search_query:
             # Redirect to search handler
-            print(f"🔍 Detected search intent: '{search_query}'")
+            print(f"[Search] Detected search intent: '{search_query}'")
             await handle_web_search(
                 websocket, state, 
                 {"query": search_query, "original_request": transcript},
@@ -1145,7 +1145,7 @@ async def handle_voice_input(
         await generate_response(websocket, state, user_settings)
     
     except Exception as e:
-        print(f"❌ Voice processing error: {e}")
+        print(f"[ERROR] Voice processing error: {e}")
         await websocket.send_json({
             "type": "error",
             "message": f"Voice processing failed: {str(e)}"
@@ -1237,7 +1237,7 @@ def detect_search_intent(text: str) -> tuple[bool, str]:
             # Use the full question as search query
             query = text.rstrip('?.!').strip()
             if len(query) > 5:
-                print(f"🔍 Auto-search triggered by realtime topic: {topic}")
+                print(f"[Search] Auto-search triggered by realtime topic: {topic}")
                 return True, query
     
     # Patterns that indicate explicit search request
@@ -1351,7 +1351,7 @@ async def handle_vision_command(
                 "eyes_open": True,
                 "message": response_text
             })
-            print("👁️ Gala's eyes opened via voice command")
+            print("[Vision] Gala's eyes opened via voice command")
         elif command == "close":
             await vision_live_service.stop()
             user_settings.vision_enabled = False
@@ -1361,7 +1361,7 @@ async def handle_vision_command(
                 "eyes_open": False,
                 "message": response_text
             })
-            print("😴 Gala's eyes closed via voice command")
+            print("[Vision] Gala's eyes closed via voice command")
         
         # Add to conversation and speak the response
         state.messages.append({
@@ -1448,7 +1448,7 @@ async def handle_web_search(
     await websocket.send_json({"type": "status", "state": "searching"})
     await websocket.send_json({"type": "search_start", "query": query})
     
-    print(f"🔍 Performing web search: '{query}'")
+    print(f"[Search] Performing web search: '{query}'")
     
     try:
         # Perform search
@@ -1772,7 +1772,7 @@ async def generate_response(
                         user_messages = [m for m in state.messages if m.get("role") == "user"]
                         if user_messages:
                             original_query = user_messages[-1].get("content", "")
-                            print(f"🔍 LLM indicated search intent, triggering search for: {original_query}")
+                            print(f"[Search] LLM indicated search intent, triggering search for: {original_query}")
                             
                             # Notify frontend
                             await websocket.send_json({
@@ -1832,7 +1832,7 @@ async def generate_response(
                                 })
                                 sentences_spoken.append(clean_sentence)
                         except Exception as e:
-                            print(f"❌ TTS error for sentence: {e}")
+                            print(f"[ERROR] TTS error for sentence: {e}")
         
         if state.should_interrupt:
             await websocket.send_json({"type": "status", "state": "idle"})
@@ -1866,7 +1866,7 @@ async def generate_response(
                             "sentence": clean_remainder
                         })
                 except Exception as e:
-                    print(f"❌ TTS error for remainder: {e}")
+                    print(f"[ERROR] TTS error for remainder: {e}")
         
         # Send complete response marker
         await websocket.send_json({
@@ -1881,7 +1881,7 @@ async def generate_response(
         })
     
     except Exception as e:
-        print(f"❌ LLM error: {e}")
+        print(f"[ERROR] LLM error: {e}")
         await websocket.send_json({
             "type": "error",
             "message": f"LLM generation failed: {str(e)}"
