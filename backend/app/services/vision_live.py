@@ -1,10 +1,97 @@
 """Vision Live Service - Real-time face/emotion analysis via galatea-vision"""
 import asyncio
 import httpx
-import json
 from typing import Optional, Callable, Any
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime
 from ..config import settings
+
+@dataclass
+class StartupContext:
+    """Rich context captured when Gala opens her eyes"""
+    # Identity
+    identity: str = ""
+    identity_role: str = "unknown"
+    is_owner: bool = False
+    
+    # Emotional state
+    emotion: str = "neutral"
+    emotion_confidence: float = 0.0
+    
+    # Demographics (from DeepFace)
+    age: int = 0
+    gender: str = ""
+    
+    # Scene analysis (from vision model)
+    scene_description: str = ""
+    environment: str = ""  # "home office", "living room", etc.
+    
+    # Time context
+    time_of_day: str = ""  # "morning", "afternoon", "evening", "night"
+    day_type: str = ""  # "weekday", "weekend"
+    
+    # Captured timestamp
+    captured_at: datetime = field(default_factory=datetime.now)
+    
+    def to_greeting_context(self) -> str:
+        """Build a rich context string for Gala's greeting"""
+        parts = []
+        
+        # Who
+        if self.identity and self.is_owner:
+            parts.append(f"{self.identity} (the owner) just opened Gala")
+        elif self.identity:
+            parts.append(f"{self.identity} (a {self.identity_role}) is here")
+        else:
+            parts.append("An unknown person is here")
+        
+        # Emotional state
+        if self.emotion and self.emotion != "neutral" and self.emotion != "unknown":
+            emotion_desc = {
+                "happy": "looking happy",
+                "sad": "looking a bit down",
+                "angry": "looking frustrated",
+                "fear": "looking worried",
+                "surprise": "looking surprised",
+                "disgust": "looking bothered",
+            }.get(self.emotion, f"appearing {self.emotion}")
+            parts.append(emotion_desc)
+        elif self.emotion == "neutral":
+            parts.append("with a calm expression")
+        
+        # Environment
+        if self.scene_description:
+            parts.append(f"Scene: {self.scene_description}")
+        elif self.environment:
+            parts.append(f"in their {self.environment}")
+        
+        # Time context
+        time_parts = []
+        if self.time_of_day:
+            time_parts.append(f"It's {self.time_of_day}")
+        if self.day_type:
+            time_parts.append(f"on a {self.day_type}")
+        if time_parts:
+            parts.append(". ".join(time_parts))
+        
+        return ". ".join(parts) + "."
+    
+    def to_dict(self) -> dict:
+        return {
+            "identity": self.identity,
+            "identity_role": self.identity_role,
+            "is_owner": self.is_owner,
+            "emotion": self.emotion,
+            "emotion_confidence": self.emotion_confidence,
+            "age": self.age,
+            "gender": self.gender,
+            "scene_description": self.scene_description,
+            "environment": self.environment,
+            "time_of_day": self.time_of_day,
+            "day_type": self.day_type,
+            "captured_at": self.captured_at.isoformat(),
+        }
+
 
 @dataclass
 class VisionResult:
@@ -285,6 +372,131 @@ class VisionLiveService:
         if not self._current_result or not self._current_result.identity:
             return ("", "unknown")
         return (self._current_result.identity, self._current_result.identity_role)
+    
+    # ============== Startup Awareness ==============
+    
+    _startup_context: Optional[StartupContext] = None
+    
+    async def capture_startup_context(self, scene_analyzer=None) -> StartupContext:
+        """
+        Capture comprehensive startup context when Gala opens her eyes.
+        
+        This includes:
+        - Face recognition (who is this?)
+        - Emotion detection (how are they feeling?)
+        - Scene analysis (where are they?)
+        - Time context (when is this?)
+        
+        Args:
+            scene_analyzer: Optional async function to analyze scene from image
+                           Should accept base64 image and return description string
+        """
+        from datetime import datetime
+        
+        context = StartupContext()
+        context.captured_at = datetime.now()
+        
+        # Time context
+        hour = context.captured_at.hour
+        if 5 <= hour < 12:
+            context.time_of_day = "morning"
+        elif 12 <= hour < 17:
+            context.time_of_day = "afternoon"
+        elif 17 <= hour < 21:
+            context.time_of_day = "evening"
+        else:
+            context.time_of_day = "night"
+        
+        weekday = context.captured_at.weekday()
+        context.day_type = "weekend" if weekday >= 5 else "weekday"
+        
+        try:
+            # Capture a frame for analysis
+            frame_data = await self.capture_frame()
+            
+            if "error" in frame_data:
+                print(f"Could not capture startup frame: {frame_data['error']}")
+                self._startup_context = context
+                return context
+            
+            image_base64 = frame_data.get("image", "")
+            
+            if not image_base64:
+                self._startup_context = context
+                return context
+            
+            # Run face/emotion analysis via vision service
+            try:
+                async with httpx.AsyncClient(timeout=30.0) as client:
+                    response = await client.post(
+                        f"{self.base_url}/analyze",
+                        json={"image": image_base64}
+                    )
+                    if response.status_code == 200:
+                        data = response.json()
+                        
+                        # Extract identity
+                        context.identity = data.get("identity", "")
+                        context.identity_role = data.get("identity_role", "unknown")
+                        context.is_owner = data.get("is_owner", False)
+                        
+                        # Extract emotion
+                        context.emotion = data.get("emotion", "neutral")
+                        emotion_scores = data.get("emotion_scores", {})
+                        if context.emotion and emotion_scores:
+                            context.emotion_confidence = emotion_scores.get(context.emotion, 0) / 100
+                        
+                        # Extract demographics
+                        context.age = data.get("age", 0)
+                        context.gender = data.get("gender", "")
+                        
+                        print(f"Startup analysis: {context.identity or 'Unknown'}, emotion={context.emotion}")
+            except Exception as e:
+                print(f"Face analysis failed during startup: {e}")
+            
+            # Run scene analysis if analyzer provided
+            if scene_analyzer and image_base64:
+                try:
+                    scene_desc = await scene_analyzer(image_base64)
+                    if scene_desc:
+                        context.scene_description = scene_desc
+                        
+                        # Try to extract environment type
+                        scene_lower = scene_desc.lower()
+                        if "office" in scene_lower:
+                            context.environment = "home office"
+                        elif "bedroom" in scene_lower:
+                            context.environment = "bedroom"
+                        elif "living" in scene_lower:
+                            context.environment = "living room"
+                        elif "kitchen" in scene_lower:
+                            context.environment = "kitchen"
+                        elif "outdoor" in scene_lower or "outside" in scene_lower:
+                            context.environment = "outdoors"
+                        
+                        print(f"Scene analysis: {context.environment or scene_desc[:50]}")
+                except Exception as e:
+                    print(f"Scene analysis failed during startup: {e}")
+        
+        except Exception as e:
+            print(f"Startup context capture failed: {e}")
+        
+        self._startup_context = context
+        return context
+    
+    def get_startup_context(self) -> Optional[StartupContext]:
+        """Get the most recent startup context"""
+        return self._startup_context
+    
+    def get_startup_greeting_context(self) -> str:
+        """Get startup context formatted for greeting"""
+        if not self._startup_context:
+            return ""
+        return self._startup_context.to_greeting_context()
+    
+    def clear_startup_context(self):
+        """Clear startup context (e.g., when eyes close)"""
+        self._startup_context = None
 
 
 # Singleton instance

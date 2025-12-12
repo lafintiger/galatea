@@ -681,15 +681,55 @@ async def vision_live_health():
 
 
 @app.post("/api/vision/live/start")
-async def vision_live_start():
-    """Open Gala's eyes - start real-time vision analysis"""
+async def vision_live_start(capture_startup: bool = True):
+    """
+    Open Gala's eyes - start real-time vision analysis
+    
+    Args:
+        capture_startup: If True, capture comprehensive startup context including scene analysis
+    """
     try:
         result = await vision_live_service.start()
-        # Also update user settings
+        
+        # Update user settings
         user_settings = settings_manager.load()
         user_settings.vision_enabled = True
         settings_manager.save(user_settings)
-        return {"success": True, "message": "Eyes opened", **result}
+        
+        # Capture startup context (who is this, how do they feel, where are they)
+        startup_context = None
+        if capture_startup:
+            async def scene_analyzer(image_b64: str) -> str:
+                """Analyze the scene using vision model"""
+                from .services.vision import vision_service
+                result = await vision_service.analyze_image(
+                    image_b64,
+                    prompt="Briefly describe the environment/setting you see. Focus on: location type (office, bedroom, living room, etc), lighting, and general atmosphere. Keep it to 1-2 sentences.",
+                    model_type="general"
+                )
+                if result.get("success"):
+                    return result.get("description", "")
+                return ""
+            
+            try:
+                startup_context = await vision_live_service.capture_startup_context(
+                    scene_analyzer=scene_analyzer
+                )
+                print(f"Startup context captured: {startup_context.identity or 'Unknown'}, {startup_context.emotion}")
+            except Exception as e:
+                print(f"Startup context capture failed (non-fatal): {e}")
+        
+        response = {
+            "success": True, 
+            "message": "Eyes opened", 
+            **result
+        }
+        
+        if startup_context:
+            response["startup_context"] = startup_context.to_dict()
+            response["greeting_context"] = startup_context.to_greeting_context()
+        
+        return response
     except Exception as e:
         return JSONResponse(
             status_code=500,
@@ -702,7 +742,11 @@ async def vision_live_stop():
     """Close Gala's eyes - stop real-time vision analysis"""
     try:
         result = await vision_live_service.stop()
-        # Also update user settings
+        
+        # Clear startup context
+        vision_live_service.clear_startup_context()
+        
+        # Update user settings
         user_settings = settings_manager.load()
         user_settings.vision_enabled = False
         settings_manager.save(user_settings)
@@ -719,12 +763,37 @@ async def vision_live_status():
     """Get current vision status and latest analysis"""
     try:
         status = await vision_live_service.get_status()
+        
+        # Include startup context if available
+        startup_ctx = vision_live_service.get_startup_context()
+        if startup_ctx:
+            status["startup_context"] = startup_ctx.to_dict()
+            status["greeting_context"] = startup_ctx.to_greeting_context()
+        
         return status
     except Exception as e:
         return JSONResponse(
             status_code=500,
             content={"success": False, "error": str(e)}
         )
+
+
+@app.get("/api/vision/live/startup-context")
+async def get_startup_context():
+    """Get the current startup context (captured when eyes opened)"""
+    startup_ctx = vision_live_service.get_startup_context()
+    
+    if not startup_ctx:
+        return {
+            "has_context": False,
+            "message": "No startup context available. Open Gala's eyes to capture context."
+        }
+    
+    return {
+        "has_context": True,
+        "context": startup_ctx.to_dict(),
+        "greeting_context": startup_ctx.to_greeting_context()
+    }
 
 
 # ============== Face Recognition Endpoints ==============
@@ -1531,6 +1600,13 @@ async def generate_response(
     # Inject vision context if available
     if vision_context:
         system_prompt += f"\n\nVISUAL AWARENESS:\n{vision_context}\nUse this visual context naturally - acknowledge emotions appropriately but don't constantly reference what you see."
+    
+    # Inject startup context for greeting (first message only)
+    startup_greeting = vision_live_service.get_startup_greeting_context()
+    is_first_message = len([m for m in state.messages if m.get("role") == "user"]) <= 1
+    
+    if startup_greeting and is_first_message:
+        system_prompt += f"\n\nSTARTUP AWARENESS:\n{startup_greeting}\nThis is the start of the conversation. Use this context to give a warm, personalized greeting. Acknowledge what you observe naturally - their presence, mood, environment, time of day. Be genuine and observant, not robotic."
     
     # Try to get relevant context from RAG (if embeddings exist)
     rag_context = ""
