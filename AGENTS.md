@@ -502,9 +502,26 @@ User says "Open your eyes" → detect_vision_command() → vision_live_service.s
 - No data leaves the machine
 - Can be toggled off anytime
 
+**Installation Options:**
+
+| Method | Latency | Setup | Best For |
+|--------|---------|-------|----------|
+| **Native** (recommended) | Lowest | `vision/start_native.bat` | Development, best webcam access |
+| **Docker** | Higher | `docker compose --profile vision up` | Production, isolated |
+
+**Native Install (Windows):**
+```powershell
+cd vision
+py -3.12 -m venv venv            # Requires Python 3.12 (TensorFlow doesn't support 3.14)
+.\venv\Scripts\activate
+pip install -r requirements-native.txt
+python main.py                    # Runs on http://localhost:8020
+```
+
 **Files:**
 - `backend/app/services/vision_live.py` - Vision service client
-- `vision/` - Docker service with DeepFace
+- `vision/` - Vision service (DeepFace + FastAPI)
+- `vision/start_native.bat` - Quick start for Windows
 - `frontend/src/components/VoiceInterface.tsx` - Eye toggle UI
 
 ### 13. Multi-Language Support
