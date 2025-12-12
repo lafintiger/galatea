@@ -466,7 +466,7 @@ export function OnboardingPanel({ isOpen, onClose }: OnboardingPanelProps) {
                 </div>
               )}
             </div>
-          ) : (
+          ) : mode === 'browse' ? (
             // Browse Mode - View/edit all answers by category
             <div className="space-y-4">
               {/* Category Pills */}
