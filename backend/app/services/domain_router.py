@@ -29,6 +29,8 @@ class Domain(Enum):
     FINANCE = "finance"
     SCIENCE = "science"
     CREATIVE = "creative"
+    KNOWLEDGE = "knowledge"  # Deep knowledge mode - slower but more capable
+    PERSONALITY = "personality"  # Big personality mode - more expressive
 
 
 @dataclass
@@ -205,6 +207,46 @@ DEFAULT_SPECIALISTS = {
         description="Creative writing specialist",
         enabled=False,  # Disabled by default
     ),
+    
+    Domain.KNOWLEDGE: DomainConfig(
+        domain=Domain.KNOWLEDGE,
+        patterns=[
+            r"\b(more\s+knowledgeable|be\s+smarter|think\s+harder|deeper\s+analysis)\b",
+            r"\b(use\s+your\s+big\s+brain|really\s+think|comprehensive|thorough)\b",
+            r"\b(expert\s+mode|full\s+power|maximum\s+intelligence)\b",
+            r"\b(detailed\s+explanation|in[\-\s]?depth|elaborate)\b",
+        ],
+        keywords=[
+            "knowledgeable", "smarter", "deeper", "thorough", "comprehensive",
+            "expert mode", "big brain", "think harder", "full power",
+            "detailed", "in-depth", "elaborate", "exhaustive",
+            "gpt mode", "smart mode", "knowledge mode",
+        ],
+        model="gpt-oss:latest",  # Slower but more capable model
+        model_size="varies",
+        description="Deep knowledge mode - slower but more capable",
+        enabled=True,
+    ),
+    
+    Domain.PERSONALITY: DomainConfig(
+        domain=Domain.PERSONALITY,
+        patterns=[
+            r"\b(more\s+personality|be\s+expressive|bigger\s+personality)\b",
+            r"\b(more\s+character|be\s+fun|liven\s+up|spicy)\b",
+            r"\b(dominique|dom\s+mode|sassy|saucy|feisty)\b",
+            r"\b(more\s+attitude|less\s+boring|entertaining)\b",
+        ],
+        keywords=[
+            "personality", "expressive", "character", "fun", "entertaining",
+            "dominique", "sassy", "spicy", "feisty", "attitude",
+            "liven up", "more interesting", "less boring", "more human",
+            "personality mode", "fun mode", "expressive mode",
+        ],
+        model="dominique:latest",  # More expressive personality model
+        model_size="varies",
+        description="Big personality mode - more expressive and fun",
+        enabled=True,
+    ),
 }
 
 
@@ -349,6 +391,8 @@ If a question requires deep expertise in one of these areas and you're not fully
 - [NEED:legal] - for legal advice, contracts, rights, litigation
 - [NEED:coding] - for programming help, debugging, code review
 - [NEED:math] - for complex calculations, proofs, statistics
+- [NEED:knowledge] - when user asks you to be more knowledgeable or think deeper
+- [NEED:personality] - when user wants more personality, sass, or expressiveness
 
 Only use these tags when the question genuinely requires specialist knowledge. For general questions or topics you're confident about, respond normally.
 
@@ -366,6 +410,8 @@ When you use a routing tag, briefly acknowledge that you're consulting specialis
             Domain.FINANCE: "Consulting my financial analysis capabilities...",
             Domain.SCIENCE: "Accessing my scientific knowledge base...",
             Domain.CREATIVE: "Engaging creative writing mode...",
+            Domain.KNOWLEDGE: "Alright, let me really think about this one...",
+            Domain.PERSONALITY: "Oh honey, you want the real me? Here we go!",
         }
         return messages.get(domain, "Let me think about this more carefully...")
 
