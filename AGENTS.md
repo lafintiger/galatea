@@ -142,6 +142,13 @@ raise TTSError(
 - All WebSocket handling moved to `routers/websocket.py`
 - Core utilities extracted to `core/` module
 - Imports tested and working
+- **BUG FIX (Dec 13)**: Fixed face recognition not working - was checking identity without refreshing vision status first
+
+### 🐛 BUGS FIXED DURING REFACTOR
+
+| Bug | Cause | Fix |
+|-----|-------|-----|
+| Face recognition always "unknown" | `_current_result` was stale - never called `get_status()` before identity check | Added `await vision_live_service.get_status()` before `get_current_identity()` |
 
 ### ⚠️ IMPORTANT NOTES
 
