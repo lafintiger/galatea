@@ -184,7 +184,7 @@ class VisionLiveService:
                 self._is_active = True
                 return response.json()
         except Exception as e:
-            print(f"❌ Vision start failed: {e}")
+            print(f"[Vision] Start failed: {e}")
             raise
     
     async def stop(self) -> dict:
@@ -197,7 +197,7 @@ class VisionLiveService:
                 self._current_result = None
                 return response.json()
         except Exception as e:
-            print(f"❌ Vision stop failed: {e}")
+            print(f"[Vision] Stop failed: {e}")
             raise
     
     async def get_status(self) -> dict:
@@ -217,7 +217,7 @@ class VisionLiveService:
                 
                 return data
         except Exception as e:
-            print(f"❌ Vision status failed: {e}")
+            print(f"[Vision] Status failed: {e}")
             return {"analyzing": False, "error": str(e)}
     
     async def analyze_single(self, image_base64: str) -> VisionResult:
@@ -232,7 +232,7 @@ class VisionLiveService:
                 data = response.json()
                 return self._parse_result(data)
         except Exception as e:
-            print(f"❌ Vision analyze failed: {e}")
+            print(f"[Vision] Analyze failed: {e}")
             raise
     
     def _parse_result(self, data: dict) -> VisionResult:

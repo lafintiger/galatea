@@ -68,7 +68,7 @@ class VisionService:
         
         model_name = self.models[model_type]
         
-        print(f"🖼️ Vision analysis requested")
+        print(f"[Vision] Analysis requested")
         print(f"   Model type: {model_type}")
         print(f"   Model: {model_name}")
         print(f"   Prompt: {prompt[:50]}...")
@@ -96,7 +96,7 @@ class VisionService:
             result = response.json()
             description = result.get("response", "").strip()
             
-            print(f"✅ Vision analysis complete ({len(description)} chars)")
+            print(f"[Vision] Analysis complete ({len(description)} chars)")
             
             return {
                 "success": True,
@@ -107,11 +107,11 @@ class VisionService:
             
         except httpx.HTTPStatusError as e:
             error_msg = f"Vision model error: {e.response.status_code}"
-            print(f"❌ {error_msg}")
+            print(f"[Vision ERROR] {error_msg}")
             
             # Try fallback to uncensored model if general fails
             if model_type != "uncensored":
-                print("🔄 Trying uncensored fallback...")
+                print("[Vision] Trying uncensored fallback...")
                 return await self.analyze_image(image_base64, prompt, "uncensored")
             
             return {
@@ -123,7 +123,7 @@ class VisionService:
             
         except Exception as e:
             error_msg = f"Vision analysis failed: {str(e)}"
-            print(f"❌ {error_msg}")
+            print(f"[Vision ERROR] {error_msg}")
             return {
                 "success": False,
                 "description": error_msg,

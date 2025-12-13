@@ -101,7 +101,7 @@ class WebSearchService:
                 "history": []  # No conversation history for fresh searches
             }
             
-            print(f"🔍 Perplexica request: {request_body}")
+            print(f"[Search] Perplexica request: {request_body}")
             
             response = await self.client.post(
                 f"{self.perplexica_url}/api/search",
@@ -111,7 +111,7 @@ class WebSearchService:
             response.raise_for_status()
             data = response.json()
             
-            print(f"✅ Perplexica response keys: {data.keys()}")
+            print(f"[Search] Perplexica response keys: {data.keys()}")
             
             # Parse response - Perplexica returns 'message' and 'sources'
             sources = []
@@ -130,7 +130,7 @@ class WebSearchService:
                 "sources": sources
             }
         except Exception as e:
-            print(f"❌ Perplexica search error: {e}")
+            print(f"[Search] Perplexica error: {e}")
             return {"answer": "", "sources": []}
     
     async def search(
@@ -153,39 +153,39 @@ class WebSearchService:
         if provider in ["perplexica", "auto"]:
             try:
                 if await self.is_perplexica_available():
-                    print(f"🔍 Trying Perplexica for search: {query}")
+                    print(f"[Search] Trying Perplexica for: {query}")
                     data = await self.search_perplexica(query)
                     if data.get("sources") or data.get("answer"):
-                        print(f"✅ Perplexica returned results")
+                        print(f"[Search] Perplexica returned results")
                         return {
                             "provider": "perplexica",
                             "query": query,
                             "summary": data.get("answer", ""),
                             "results": data.get("sources", [])
                         }
-                    print("⚠️ Perplexica returned no results, trying SearXNG...")
+                    print("[Search] Perplexica returned no results, trying SearXNG...")
             except Exception as e:
-                print(f"⚠️ Perplexica error: {e}, trying SearXNG...")
+                print(f"[Search] Perplexica error: {e}, trying SearXNG...")
         
         # Use SearXNG (reliable fallback)
         try:
             if await self.is_searxng_available():
-                print(f"🔍 Using SearXNG for search: {query}")
+                print(f"[Search] Using SearXNG for: {query}")
                 results = await self.search_searxng(query, num_results)
                 if results:
-                    print(f"✅ SearXNG returned {len(results)} results")
+                    print(f"[Search] SearXNG returned {len(results)} results")
                     return {
                         "provider": "searxng",
                         "query": query,
                         "summary": "",  # LLM will summarize
                         "results": [r.to_dict() for r in results]
                     }
-                print("⚠️ SearXNG returned no results")
+                print("[Search] SearXNG returned no results")
         except Exception as e:
-            print(f"❌ SearXNG error: {e}")
+            print(f"[Search] SearXNG error: {e}")
         
         # Both failed
-        print("❌ No search services returned results")
+        print("[Search] No search services returned results")
         return {
             "provider": "none",
             "query": query,
