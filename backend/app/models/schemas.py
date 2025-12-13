@@ -5,14 +5,14 @@ from datetime import datetime
 
 
 class SpecialistModels(BaseModel):
-    """Specialist model configuration for domain routing"""
-    medical: str = "meditron:7b"
-    legal: str = "saul-instruct:7b"  
-    coding: str = "qwen2.5-coder:7b"
-    math: str = "mathstral:7b"
-    finance: str = ""  # Disabled by default
-    science: str = "rnj-1:latest"  # STEM specialist (Essential AI, 8B)
-    creative: str = ""  # Disabled by default
+    """Specialist model configuration for domain routing - SOTA models as of 2025"""
+    medical: str = "openbiollm:8b"  # OpenBioLLM-Llama3-8B
+    legal: str = "qwen2.5:7b"  # Qwen 2.5 7B (strong legal reasoning)
+    coding: str = "qwen2.5-coder:7b"  # Qwen 2.5 Coder 7B
+    math: str = "qwen2.5-math:7b"  # Qwen 2.5 Math 7B
+    finance: str = "fingpt:8b"  # FinGPT-Llama3-8B
+    science: str = "rnj-1:latest"  # Essential AI STEM specialist
+    creative: str = "hermes3:8b"  # Hermes 3 (Llama 3.1)
     knowledge: str = "gpt-oss:latest"  # Slower but more capable
     personality: str = "dominique:latest"  # More expressive personality
 

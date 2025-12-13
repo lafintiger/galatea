@@ -65,9 +65,9 @@ DEFAULT_SPECIALISTS = {
             "vaccine", "immunization", "antibiotic", "antidepressant",
             "mg", "dosage", "twice daily", "prescription",
         ],
-        model="meditron:7b",  # or biomistral, medllama2
-        model_size="7B",
-        description="Medical and healthcare specialist",
+        model="openbiollm:8b",  # OpenBioLLM-Llama3-8B - SOTA medical model
+        model_size="8B",
+        description="Medical and healthcare specialist (OpenBioLLM)",
         enabled=True,
     ),
     
@@ -89,9 +89,9 @@ DEFAULT_SPECIALISTS = {
             "arrest", "bail", "sentence",
             "landlord", "tenant", "lease", "eviction",
         ],
-        model="saul-instruct:7b",  # or legallama
+        model="qwen2.5:7b",  # Qwen 2.5 7B - strong general + legal reasoning
         model_size="7B",
-        description="Legal and contract specialist",
+        description="Legal and contract specialist (Qwen 2.5)",
         enabled=True,
     ),
     
@@ -114,9 +114,9 @@ DEFAULT_SPECIALISTS = {
             "frontend", "backend", "fullstack", "devops",
             "docker", "kubernetes", "aws", "cloud",
         ],
-        model="qwen2.5-coder:7b",  # or deepseek-coder, codellama
+        model="qwen2.5-coder:7b",  # SOTA coding model, or deepseek-r1-distill-qwen:7b
         model_size="7B",
-        description="Programming and software development specialist",
+        description="Programming and software development specialist (Qwen 2.5 Coder)",
         enabled=True,
     ),
     
@@ -138,9 +138,9 @@ DEFAULT_SPECIALISTS = {
             "graph", "function", "variable", "constant",
             "factorial", "permutation", "combination",
         ],
-        model="mathstral:7b",  # or qwen2.5-math
+        model="qwen2.5-math:7b",  # SOTA math model, or numinamath:7b
         model_size="7B",
-        description="Mathematics and calculations specialist",
+        description="Mathematics and calculations specialist (Qwen 2.5 Math)",
         enabled=True,
     ),
     
@@ -162,10 +162,10 @@ DEFAULT_SPECIALISTS = {
             "crypto", "bitcoin", "ethereum", "cryptocurrency",
             "inflation", "recession", "gdp", "economy",
         ],
-        model="phi3:latest",  # General model with good finance knowledge
-        model_size="3.8B",
-        description="Finance and investment specialist",
-        enabled=False,  # Disabled by default - no great specialist yet
+        model="fingpt:8b",  # FinGPT-Llama3-8B - SOTA finance model
+        model_size="8B",
+        description="Finance and investment specialist (FinGPT)",
+        enabled=True,  # Enabled - FinGPT is a solid finance specialist
     ),
     
     Domain.SCIENCE: DomainConfig(
@@ -207,10 +207,10 @@ DEFAULT_SPECIALISTS = {
             "character", "plot", "narrative", "dialogue",
             "roleplay", "scenario", "imagine",
         ],
-        model="mythomax:latest",  # or nous-hermes
-        model_size="13B",
-        description="Creative writing specialist",
-        enabled=False,  # Disabled by default
+        model="hermes3:8b",  # Hermes 3 (Llama 3.1) - SOTA creative/roleplay
+        model_size="8B",
+        description="Creative writing specialist (Hermes 3)",
+        enabled=True,  # Enabled - Hermes 3 is excellent for creative writing
     ),
     
     Domain.KNOWLEDGE: DomainConfig(
