@@ -24,3 +24,4 @@ EMBEDDING_MODEL_PROVIDER = "ollama"
 EMBEDDING_MODEL = "bge-m3:latest"
 
 
+
