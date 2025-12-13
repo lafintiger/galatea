@@ -891,11 +891,12 @@ async def get_specialists():
 @app.post("/api/routing/detect")
 async def detect_domain(text: str = Body(..., embed=True)):
     """Detect the domain of a query (for testing/debugging)"""
-    domain, confidence, model = domain_router.detect_domain(text)
+    domain, confidence, model, voice = domain_router.detect_domain(text)
     return {
         "domain": domain.value,
         "confidence": confidence,
         "specialist_model": model,
+        "voice_override": voice,
         "would_route": model is not None and confidence >= 0.4
     }
 
@@ -1645,7 +1646,7 @@ async def generate_response(
             last_user_msg = user_messages[-1].get("content", "")
             
             # Detect domain
-            detected_domain, confidence, specialist_model = domain_router.detect_domain(last_user_msg)
+            detected_domain, confidence, specialist_model, voice_override = domain_router.detect_domain(last_user_msg)
             
             if specialist_model and confidence >= 0.4:
                 # Check if the specialist model is configured and different from current
@@ -1658,12 +1659,19 @@ async def generate_response(
                     Domain.FINANCE: spec_models.finance,
                     Domain.SCIENCE: spec_models.science,
                     Domain.CREATIVE: spec_models.creative,
+                    Domain.KNOWLEDGE: spec_models.knowledge,
+                    Domain.PERSONALITY: spec_models.personality,
                 }
                 
                 configured_model = model_map.get(detected_domain, "")
                 
                 if configured_model and configured_model != active_model:
                     print(f"Domain routing: {detected_domain.value} -> {configured_model} (confidence: {confidence:.2f})")
+                    
+                    # Apply voice override if specified (e.g., Nicole for personality mode)
+                    if voice_override:
+                        print(f"Voice override: {voice_override}")
+                        user_settings.selected_voice = voice_override
                     
                     # Send transition message to user
                     handoff_msg = domain_router.get_handoff_message(detected_domain)
@@ -1672,7 +1680,8 @@ async def generate_response(
                         "domain": detected_domain.value,
                         "model": configured_model,
                         "message": handoff_msg,
-                        "confidence": confidence
+                        "confidence": confidence,
+                        "voice_override": voice_override
                     })
                     
                     # Switch to specialist model

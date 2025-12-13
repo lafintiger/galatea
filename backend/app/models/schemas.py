@@ -13,6 +13,8 @@ class SpecialistModels(BaseModel):
     finance: str = ""  # Disabled by default
     science: str = ""  # Disabled by default
     creative: str = ""  # Disabled by default
+    knowledge: str = "gpt-oss:latest"  # Slower but more capable
+    personality: str = "dominique:latest"  # More expressive personality
 
 
 class UserSettings(BaseModel):

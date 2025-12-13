@@ -43,6 +43,7 @@ class DomainConfig:
     model_size: str  # For display (e.g., "7B")
     description: str  # Human-readable description
     enabled: bool = True
+    voice: Optional[str] = None  # Optional voice override for this domain
 
 
 # Default specialist model configurations
@@ -246,6 +247,7 @@ DEFAULT_SPECIALISTS = {
         model_size="varies",
         description="Big personality mode - more expressive and fun",
         enabled=True,
+        voice="af_nicole",  # Nicole (American Female) - matches the personality
     ),
 }
 
@@ -280,15 +282,16 @@ class DomainRouter:
             self.specialists[domain].enabled = enabled
             self._compile_patterns()
     
-    def detect_domain(self, text: str) -> Tuple[Domain, float, Optional[str]]:
+    def detect_domain(self, text: str) -> Tuple[Domain, float, Optional[str], Optional[str]]:
         """
         Detect the domain of a user query.
         
         Returns:
-            (domain, confidence, specialist_model)
+            (domain, confidence, specialist_model, voice_override)
             - domain: The detected domain
             - confidence: 0.0-1.0 confidence score
             - specialist_model: Model name if specialist recommended, None otherwise
+            - voice_override: Voice to use for this domain, None to keep current
         """
         text_lower = text.lower()
         scores: dict[Domain, float] = {d: 0.0 for d in Domain}
@@ -323,11 +326,11 @@ class DomainRouter:
         if best_score >= CONFIDENCE_THRESHOLD and best_domain != Domain.GENERAL:
             specialist = self.specialists[best_domain]
             logger.info(f"Domain detected: {best_domain.value} (confidence: {best_score:.2f})")
-            return (best_domain, best_score, specialist.model)
+            return (best_domain, best_score, specialist.model, specialist.voice)
         
-        return (Domain.GENERAL, 1.0 - best_score, None)
+        return (Domain.GENERAL, 1.0 - best_score, None, None)
     
-    def parse_self_route(self, text: str) -> Optional[Tuple[Domain, str]]:
+    def parse_self_route(self, text: str) -> Optional[Tuple[Domain, str, Optional[str]]]:
         """
         Parse self-routing tags from Gala's response.
         
@@ -337,7 +340,7 @@ class DomainRouter:
         - [SPECIALIST:legal]
         
         Returns:
-            (domain, model) if routing tag found, None otherwise
+            (domain, model, voice) if routing tag found, None otherwise
         """
         patterns = [
             r'\[NEED:(\w+)\]',
@@ -352,7 +355,8 @@ class DomainRouter:
                 try:
                     domain = Domain(domain_str)
                     if domain in self.specialists and self.specialists[domain].enabled:
-                        return (domain, self.specialists[domain].model)
+                        spec = self.specialists[domain]
+                        return (domain, spec.model, spec.voice)
                 except ValueError:
                     logger.warning(f"Unknown domain in self-route: {domain_str}")
         
