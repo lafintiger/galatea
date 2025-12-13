@@ -5,16 +5,16 @@ from datetime import datetime
 
 
 class SpecialistModels(BaseModel):
-    """Specialist model configuration for domain routing - SOTA models as of 2025"""
-    medical: str = "openbiollm:8b"  # OpenBioLLM-Llama3-8B
-    legal: str = "qwen2.5:7b"  # Qwen 2.5 7B (strong legal reasoning)
-    coding: str = "qwen2.5-coder:7b"  # Qwen 2.5 Coder 7B
-    math: str = "qwen2.5-math:7b"  # Qwen 2.5 Math 7B
-    finance: str = "fingpt:8b"  # FinGPT-Llama3-8B
+    """Specialist model configuration for domain routing - using installed models"""
+    medical: str = "koesn/llama3-openbiollm-8b:latest"  # OpenBioLLM 8B
+    legal: str = "qwen3:32b"  # Qwen 3 32B - superior reasoning
+    coding: str = "huihui_ai/qwen3-coder-abliterated:latest"  # Qwen 3 Coder 30B
+    math: str = "mightykatun/qwen2.5-math:7b"  # Qwen 2.5 Math 7B
+    finance: str = "fingpt:latest"  # FinGPT
     science: str = "rnj-1:latest"  # Essential AI STEM specialist
-    creative: str = "hermes3:8b"  # Hermes 3 (Llama 3.1)
-    knowledge: str = "gpt-oss:latest"  # Slower but more capable
-    personality: str = "dominique:latest"  # More expressive personality
+    creative: str = "huihui_ai/qwen3-abliterated:32b"  # Qwen 3 32B uncensored
+    knowledge: str = "huihui_ai/gpt-oss-abliterated:20b-q8_0"  # GPT-OSS 20B uncensored
+    personality: str = "MartinRizzo/Regent-Dominique:24b-iq3_XXS"  # Dominique 24B
 
 
 class UserSettings(BaseModel):

@@ -65,7 +65,7 @@ DEFAULT_SPECIALISTS = {
             "vaccine", "immunization", "antibiotic", "antidepressant",
             "mg", "dosage", "twice daily", "prescription",
         ],
-        model="openbiollm:8b",  # OpenBioLLM-Llama3-8B - SOTA medical model
+        model="koesn/llama3-openbiollm-8b:latest",  # OpenBioLLM-Llama3-8B
         model_size="8B",
         description="Medical and healthcare specialist (OpenBioLLM)",
         enabled=True,
@@ -89,9 +89,9 @@ DEFAULT_SPECIALISTS = {
             "arrest", "bail", "sentence",
             "landlord", "tenant", "lease", "eviction",
         ],
-        model="qwen2.5:7b",  # Qwen 2.5 7B - strong general + legal reasoning
-        model_size="7B",
-        description="Legal and contract specialist (Qwen 2.5)",
+        model="qwen3:32b",  # Qwen 3 32B - superior reasoning for legal
+        model_size="32B",
+        description="Legal and contract specialist (Qwen 3)",
         enabled=True,
     ),
     
@@ -114,9 +114,9 @@ DEFAULT_SPECIALISTS = {
             "frontend", "backend", "fullstack", "devops",
             "docker", "kubernetes", "aws", "cloud",
         ],
-        model="qwen2.5-coder:7b",  # SOTA coding model, or deepseek-r1-distill-qwen:7b
-        model_size="7B",
-        description="Programming and software development specialist (Qwen 2.5 Coder)",
+        model="huihui_ai/qwen3-coder-abliterated:latest",  # Qwen 3 Coder 30B abliterated
+        model_size="30B",
+        description="Programming and software development specialist (Qwen 3 Coder)",
         enabled=True,
     ),
     
@@ -138,7 +138,7 @@ DEFAULT_SPECIALISTS = {
             "graph", "function", "variable", "constant",
             "factorial", "permutation", "combination",
         ],
-        model="qwen2.5-math:7b",  # SOTA math model, or numinamath:7b
+        model="mightykatun/qwen2.5-math:7b",  # Qwen 2.5 Math 7B
         model_size="7B",
         description="Mathematics and calculations specialist (Qwen 2.5 Math)",
         enabled=True,
@@ -162,10 +162,10 @@ DEFAULT_SPECIALISTS = {
             "crypto", "bitcoin", "ethereum", "cryptocurrency",
             "inflation", "recession", "gdp", "economy",
         ],
-        model="fingpt:8b",  # FinGPT-Llama3-8B - SOTA finance model
+        model="fingpt:latest",  # FinGPT - finance specialist
         model_size="8B",
         description="Finance and investment specialist (FinGPT)",
-        enabled=True,  # Enabled - FinGPT is a solid finance specialist
+        enabled=True,
     ),
     
     Domain.SCIENCE: DomainConfig(
@@ -207,10 +207,10 @@ DEFAULT_SPECIALISTS = {
             "character", "plot", "narrative", "dialogue",
             "roleplay", "scenario", "imagine",
         ],
-        model="hermes3:8b",  # Hermes 3 (Llama 3.1) - SOTA creative/roleplay
-        model_size="8B",
-        description="Creative writing specialist (Hermes 3)",
-        enabled=True,  # Enabled - Hermes 3 is excellent for creative writing
+        model="huihui_ai/qwen3-abliterated:32b",  # Qwen 3 32B abliterated - uncensored creative
+        model_size="32B",
+        description="Creative writing specialist (Qwen 3 abliterated)",
+        enabled=True,
     ),
     
     Domain.KNOWLEDGE: DomainConfig(
@@ -227,9 +227,9 @@ DEFAULT_SPECIALISTS = {
             "detailed", "in-depth", "elaborate", "exhaustive",
             "gpt mode", "smart mode", "knowledge mode",
         ],
-        model="gpt-oss:latest",  # Slower but more capable model
-        model_size="varies",
-        description="Deep knowledge mode - slower but more capable",
+        model="huihui_ai/gpt-oss-abliterated:20b-q8_0",  # GPT-OSS 20B abliterated - deep knowledge
+        model_size="20B",
+        description="Deep knowledge mode - slower but more capable (uncensored)",
         enabled=True,
     ),
     
@@ -247,9 +247,9 @@ DEFAULT_SPECIALISTS = {
             "liven up", "more interesting", "less boring", "more human",
             "personality mode", "fun mode", "expressive mode",
         ],
-        model="dominique:latest",  # More expressive personality model
-        model_size="varies",
-        description="Big personality mode - more expressive and fun",
+        model="MartinRizzo/Regent-Dominique:24b-iq3_XXS",  # Dominique 24B - big personality
+        model_size="24B",
+        description="Big personality mode - expressive and sassy",
         enabled=True,
         voice="af_nicole",  # Nicole (American Female) - matches the personality
     ),
