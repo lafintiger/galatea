@@ -2,6 +2,156 @@
 
 > This document is for AI agents continuing development on this project. Read this first to understand the codebase, architecture, and roadmap.
 
+---
+
+## 🚨 ACTIVE REFACTORING IN PROGRESS (December 13, 2024)
+
+**IMPORTANT: Read this section first if you're continuing this work.**
+
+### Current Goal
+Refactoring the backend codebase for **maintainability, understandability, and troubleshooting**. The user's priorities are:
+1. **Usability** - System should work well
+2. **Understanding** - Code should be readable and organized
+3. **Troubleshooting** - Easy to debug when things go wrong
+
+### Git Safety
+- **Baseline commit**: `6565b11` - "Checkpoint: Working state before refactoring"
+- **Revert command**: `git reset --hard 6565b11`
+- All changes are safe to test incrementally
+
+### Code Review Document
+See `codereview.md` in project root for comprehensive assessment including:
+- Strengths and weaknesses
+- Specific issues identified
+- Recommended refactoring phases
+- Performance considerations
+
+---
+
+### 📋 REFACTORING TASK LIST
+
+#### Phase 1: Logging & Exception Infrastructure
+| Task | Status | Notes |
+|------|--------|-------|
+| Create `backend/app/core/` module | ✅ DONE | Package init with exports |
+| Create `core/logging.py` | ✅ DONE | Colored console output, file logging support |
+| Create `core/exceptions.py` | ✅ DONE | Custom exception hierarchy (GalateaError, ServiceUnavailableError, etc.) |
+| Create `core/audio.py` | ✅ DONE | `clean_for_speech()`, sentence splitting utilities |
+| Create `core/intent.py` | ✅ DONE | `detect_search_intent()`, `detect_vision_command()`, `detect_workspace_command()` |
+| Create `core/tts.py` | ✅ DONE | `synthesize_tts()` unified TTS interface |
+| Update services to use logging | ⏳ PENDING | Replace all `print()` with `logger.X()` |
+
+#### Phase 2: Split main.py (~2357 lines → ~90 lines) ✅ COMPLETE
+| Task | Status | Notes |
+|------|--------|-------|
+| Create `routers/api.py` | ✅ DONE | All REST endpoints (~600 lines) |
+| Create `routers/websocket.py` | ✅ DONE | WebSocket handler + all handlers (~700 lines) |
+| Create `core/tts.py` | ✅ DONE | TTS synthesis abstraction |
+| Refactor main.py | ✅ DONE | Now only ~90 lines - app setup + lifespan |
+
+#### Phase 3: Testing & Verification
+| Task | Status | Notes |
+|------|--------|-------|
+| Test all REST endpoints | ⏳ PENDING | After splitting |
+| Test WebSocket flow | ⏳ PENDING | Voice input → LLM → TTS |
+| Test workspace commands | ⏳ PENDING | Add note, add todo, etc. |
+| Test vision commands | ⏳ PENDING | Open/close eyes |
+| Test search flow | ⏳ PENDING | Natural language search triggers |
+
+#### Phase 4: Documentation
+| Task | Status | Notes |
+|------|--------|-------|
+| Update AGENTS.md structure section | ⏳ PENDING | Reflect new file layout |
+| Update codebase structure diagram | ⏳ PENDING | Show core/ and routers/ |
+
+---
+
+### 📁 FILES CREATED/MODIFIED
+
+```
+backend/app/
+├── main.py              # ✅ REFACTORED - Now only ~90 lines (was 2357!)
+├── core/
+│   ├── __init__.py      # ✅ Created - exports all core utilities
+│   ├── logging.py       # ✅ Created - get_logger(), setup_logging(), colored output
+│   ├── exceptions.py    # ✅ Created - GalateaError hierarchy
+│   ├── audio.py         # ✅ Created - clean_for_speech(), sentence utilities
+│   ├── intent.py        # ✅ Created - detect_search_intent(), detect_vision_command(), detect_workspace_command()
+│   └── tts.py           # ✅ Created - synthesize_tts() unified interface
+└── routers/
+    ├── __init__.py      # ✅ Updated - exports api_router, websocket_router
+    ├── api.py           # ✅ Created - All REST endpoints (~600 lines)
+    └── websocket.py     # ✅ Created - WebSocket handler + all message handlers (~700 lines)
+```
+
+### 🔧 HOW TO USE NEW LOGGING
+
+Replace print statements with proper logging:
+
+```python
+# OLD (bad)
+print(f"[WS] Client connected")
+print(f"[ERROR] Something failed: {e}")
+
+# NEW (good)
+from app.core import get_logger
+logger = get_logger(__name__)
+
+logger.info("Client connected")
+logger.error("Something failed", exc_info=True)
+```
+
+### 🔧 HOW TO USE NEW EXCEPTIONS
+
+```python
+from app.core import ServiceUnavailableError, TTSError
+
+# When Ollama doesn't respond
+try:
+    result = await httpx_client.post(...)
+except httpx.ConnectError:
+    raise ServiceUnavailableError(
+        "Ollama",
+        url="http://localhost:11434",
+        suggestion="Is Ollama running? Try: ollama serve"
+    )
+
+# When TTS fails
+raise TTSError(
+    provider="Kokoro",
+    voice="af_heart",
+    cause="HTTP 500 from Kokoro service"
+)
+```
+
+---
+
+### 🎯 NEXT STEPS FOR CONTINUING AGENT
+
+**Phase 2 is COMPLETE!** main.py has been split successfully. Next:
+
+1. **Update existing services** to use `get_logger(__name__)` instead of `print()`
+   - Priority files: `services/ollama.py`, `services/wyoming.py`, `services/kokoro.py`
+2. **Test the refactored code** - run the backend and verify all features work
+3. **Update documentation** - reflect new file structure
+
+### ✅ WHAT'S DONE
+
+- main.py reduced from 2357 lines to ~90 lines
+- All REST endpoints moved to `routers/api.py`
+- All WebSocket handling moved to `routers/websocket.py`
+- Core utilities extracted to `core/` module
+- Imports tested and working
+
+### ⚠️ IMPORTANT NOTES
+
+- **Imports work** - tested with `python -c "from app.main import app"`
+- **Virtual environment required** - use `.\venv\Scripts\Activate.ps1` on Windows
+- **Test thoroughly** - WebSocket, voice, vision, workspace all need testing
+- **Keep the baseline** - commit `6565b11` is the safety checkpoint
+
+---
+
 ## 🎯 Project Overview
 
 **Galatea** is a local voice AI companion - think Alexa/Siri but running entirely on the user's hardware with no cloud dependencies. Named after the Greek myth of Pygmalion and Galatea.
