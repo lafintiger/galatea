@@ -12,7 +12,7 @@ class ModelManager:
     def __init__(self):
         self.ollama_url = settings.ollama_base_url
         self.chat_model: Optional[str] = None
-        self.embedding_model = "bge-m3"  # High quality embedding model (1.2GB, 1024 dims)
+        self.embedding_model = "nomic-embed-text-v2-moe"  # MoE embedding model (958MB, 768 dims, faster)
     
     async def get_loaded_models(self) -> List[dict]:
         """Get list of currently loaded models"""

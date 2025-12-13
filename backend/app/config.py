@@ -41,7 +41,7 @@ class Settings(BaseSettings):
     # Perplexica provider ID for Ollama (get from Perplexica config.json)
     perplexica_ollama_provider_id: str = "ff71bfa7-4d8d-45c2-8e70-a6232e437a5f"
     perplexica_chat_model: str = "ministral-3:3b"  # Fast non-thinking model for search
-    perplexica_embedding_model: str = "bge-m3:latest"  # Embedding model for search
+    perplexica_embedding_model: str = "nomic-embed-text-v2-moe:latest"  # MoE embedding model (958MB, 768 dims, faster)
     
     # Vision Service (galatea-vision - DeepFace face/emotion analysis)
     vision_host: str = "localhost"

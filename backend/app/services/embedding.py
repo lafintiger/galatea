@@ -25,7 +25,7 @@ class EmbeddingService:
     
     def __init__(self):
         self.ollama_url = settings.ollama_base_url
-        self.embedding_model = "bge-m3"  # High quality embedding model (1.2GB, 1024 dims)
+        self.embedding_model = "nomic-embed-text-v2-moe"  # MoE embedding model (958MB, 768 dims, faster)
         self.db_path = settings.data_dir / "lancedb"
         self.db_path.mkdir(parents=True, exist_ok=True)
         self.db = None
@@ -48,7 +48,7 @@ class EmbeddingService:
             self.table = self.db.open_table(table_name)
         else:
             # Create table with initial schema
-            # bge-m3 produces 1024-dim embeddings
+            # nomic-embed-text-v2-moe produces 768-dim embeddings
             import pyarrow as pa
             schema = pa.schema([
                 pa.field("id", pa.string()),
@@ -56,20 +56,30 @@ class EmbeddingService:
                 pa.field("role", pa.string()),
                 pa.field("content", pa.string()),
                 pa.field("timestamp", pa.string()),
-                pa.field("vector", pa.list_(pa.float32(), 1024)),
+                pa.field("vector", pa.list_(pa.float32(), 768)),
             ])
             self.table = self.db.create_table(table_name, schema=schema)
         
         return self.table
     
-    async def get_embedding(self, text: str) -> List[float]:
-        """Get embedding for a single text using Ollama"""
+    async def get_embedding(self, text: str, is_query: bool = False) -> List[float]:
+        """Get embedding for a single text using Ollama
+        
+        Args:
+            text: The text to embed
+            is_query: If True, use query prefix; if False, use document prefix
+                     (nomic-embed-text-v2-moe requires these prefixes for best results)
+        """
+        # Add appropriate prefix for nomic model
+        prefix = "search_query: " if is_query else "search_document: "
+        prefixed_text = prefix + text
+        
         async with httpx.AsyncClient() as client:
             response = await client.post(
                 f"{self.ollama_url}/api/embed",
                 json={
                     "model": self.embedding_model,
-                    "input": text
+                    "input": prefixed_text
                 },
                 timeout=60.0  # Embeddings can take time
             )
@@ -120,8 +130,8 @@ class EmbeddingService:
         if table is None or len(table) == 0:
             return []
         
-        # Get query embedding
-        query_vector = await self.get_embedding(query)
+        # Get query embedding (use query prefix for better retrieval)
+        query_vector = await self.get_embedding(query, is_query=True)
         
         # Search LanceDB
         results = (
