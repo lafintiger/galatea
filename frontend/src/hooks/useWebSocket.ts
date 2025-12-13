@@ -1,7 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import { useWorkspaceStore } from '../stores/workspaceStore'
+import { useWorkspaceStore, waitForHydration, getHasHydrated } from '../stores/workspaceStore'
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
@@ -100,12 +100,21 @@ export function useWebSocket() {
 
   // Handle workspace commands from backend
   // Now sends confirmation back so backend only speaks on success
-  const handleWorkspaceCommand = (command: any, confirmationText?: string) => {
+  const handleWorkspaceCommand = async (command: any, initialConfirmationText?: string) => {
     let success = false
     let errorMessage = ''
+    let confirmationText = initialConfirmationText || ''
     
     try {
-      const workspace = useWorkspaceStore.getState()
+      // Wait for store hydration if not already done
+      if (!getHasHydrated()) {
+        console.log('⏳ Waiting for workspace store hydration...')
+        await waitForHydration()
+        console.log('✅ Workspace store hydrated, proceeding with command')
+      }
+      
+      // Always get fresh state for each operation
+      const store = useWorkspaceStore
       
       console.log('📝 Workspace command received:', command)
       console.log('📝 Action type:', typeof command.action, `"${command.action}"`)
@@ -114,9 +123,10 @@ export function useWebSocket() {
         case 'add_note':
           console.log('✅ MATCHED add_note case')
           console.log('Adding note:', command.content)
-          const notesBefore = workspace.notes
-          workspace.appendToNotes(command.content)
-          const notesAfter = useWorkspaceStore.getState().notes
+          const notesBefore = store.getState().notes
+          store.getState().appendToNotes(command.content)
+          // Small delay to ensure state update propagates
+          const notesAfter = store.getState().notes
           console.log('Notes before:', notesBefore?.length || 0, 'chars')
           console.log('Notes after:', notesAfter?.length || 0, 'chars')
           // Verify the note was actually added
@@ -127,75 +137,118 @@ export function useWebSocket() {
             errorMessage = 'Note was not added to store'
             console.error('❌ Note NOT found in store after append!')
           }
-          workspace.setIsOpen(true)
-          workspace.setActiveTab('notes')
+          store.getState().setIsOpen(true)
+          store.getState().setActiveTab('notes')
           break
           
         case 'add_todo':
           console.log('✅ MATCHED add_todo case')
-          const todosBefore = workspace.todos.length
-          workspace.addTodo(command.content)
-          const todosAfter = useWorkspaceStore.getState().todos.length
+          const todosBefore = store.getState().todos.length
+          console.log('Todos before:', todosBefore)
+          store.getState().addTodo(command.content)
+          const todosAfter = store.getState().todos.length
+          console.log('Todos after:', todosAfter)
           if (todosAfter > todosBefore) {
             success = true
-            console.log('✅ Todo verified in store')
+            console.log('✅ Todo verified in store, count:', todosAfter)
           } else {
             errorMessage = 'Todo was not added to store'
             console.error('❌ Todo count did not increase!')
           }
-          workspace.setIsOpen(true)
-          workspace.setActiveTab('todos')
+          store.getState().setIsOpen(true)
+          store.getState().setActiveTab('todos')
           break
         
       case 'complete_todo':
         // Find a todo that matches the search text
-        const allTodos = workspace.todos
+        console.log('✅ MATCHED complete_todo case')
+        const allTodos = store.getState().todos
         const matchingTodo = allTodos.find(t => 
           t.text.toLowerCase().includes(command.search.toLowerCase()) && !t.done
         )
         if (matchingTodo) {
-          workspace.toggleTodo(matchingTodo.id)
+          store.getState().toggleTodo(matchingTodo.id)
           success = true
+          console.log('✅ Todo completed:', matchingTodo.text)
         } else {
           errorMessage = `Could not find todo matching "${command.search}"`
+          console.error('❌ No matching todo found')
         }
-        workspace.setIsOpen(true)
-        workspace.setActiveTab('todos')
+        store.getState().setIsOpen(true)
+        store.getState().setActiveTab('todos')
         break
         
       case 'read_todos':
-        workspace.setIsOpen(true)
-        workspace.setActiveTab('todos')
+        console.log('✅ MATCHED read_todos case')
+        const allTodosForRead = store.getState().todos
+        console.log('📋 Raw todos from store:', allTodosForRead)
+        // Explicitly check done === true, treating undefined/false as pending
+        const pendingTodos = allTodosForRead.filter(t => t.done !== true)
+        const completedTodos = allTodosForRead.filter(t => t.done === true)
+        console.log(`📋 Pending: ${pendingTodos.length}, Completed: ${completedTodos.length}`)
+        store.getState().setIsOpen(true)
+        store.getState().setActiveTab('todos')
         success = true
+        // Override confirmation text with actual todo info
+        if (pendingTodos.length === 0) {
+          confirmationText = "Your to-do list is empty. You have no pending tasks."
+        } else if (pendingTodos.length === 1) {
+          confirmationText = `You have 1 pending task: ${pendingTodos[0].text}`
+        } else {
+          const todoList = pendingTodos.slice(0, 5).map(t => t.text).join(', ')
+          confirmationText = `You have ${pendingTodos.length} pending tasks: ${todoList}`
+          if (pendingTodos.length > 5) {
+            confirmationText += `, and ${pendingTodos.length - 5} more.`
+          }
+        }
+        if (completedTodos.length > 0) {
+          confirmationText += ` Plus ${completedTodos.length} completed.`
+        }
+        console.log('📋 Todo summary:', confirmationText)
         break
         
       case 'read_notes':
-        workspace.setIsOpen(true)
-        workspace.setActiveTab('notes')
+        console.log('✅ MATCHED read_notes case')
+        const notes = store.getState().notes
+        store.getState().setIsOpen(true)
+        store.getState().setActiveTab('notes')
         success = true
+        // Override confirmation text with note info
+        if (!notes || notes.trim().length === 0) {
+          confirmationText = "Your notes are empty."
+        } else {
+          const wordCount = notes.split(/\s+/).filter(w => w.length > 0).length
+          const preview = notes.substring(0, 200).replace(/\n/g, ' ')
+          confirmationText = `Your notes have about ${wordCount} words. Here's a preview: ${preview}${notes.length > 200 ? '...' : ''}`
+        }
+        console.log('📝 Notes summary:', confirmationText)
         break
         
       case 'log_data':
-        const entriesBefore = workspace.dataEntries.length
-        workspace.addDataEntry({
+        console.log('✅ MATCHED log_data case')
+        const entriesBefore = store.getState().dataEntries.length
+        store.getState().addDataEntry({
           type: command.type,
           date: new Date().toISOString().split('T')[0],
           value: command.value,
           unit: command.unit,
           notes: command.notes
         })
-        const entriesAfter = useWorkspaceStore.getState().dataEntries.length
+        const entriesAfter = store.getState().dataEntries.length
+        console.log('Entries before:', entriesBefore, 'after:', entriesAfter)
         if (entriesAfter > entriesBefore) {
           success = true
+          console.log('✅ Data entry verified in store')
         } else {
           errorMessage = 'Data entry was not added'
+          console.error('❌ Data entry count did not increase!')
         }
-        workspace.setIsOpen(true)
-        workspace.setActiveTab('data')
+        store.getState().setIsOpen(true)
+        store.getState().setActiveTab('data')
         break
         
       case 'open_workspace':
-        workspace.setIsOpen(true)
+        store.getState().setIsOpen(true)
         success = true
         break
         
@@ -267,8 +320,10 @@ export function useWebSocket() {
         break
 
       case 'transcription':
+        console.log('📝 Transcription received:', data.text, 'final:', data.final)
         setCurrentTranscript(data.text)
         if (data.final) {
+          console.log('📝 Adding USER message to transcript')
           addMessage({
             id: crypto.randomUUID(),
             role: 'user',
@@ -288,12 +343,20 @@ export function useWebSocket() {
         break
 
       case 'llm_complete':
-        addMessage({
-          id: crypto.randomUUID(),
-          role: 'assistant',
-          content: data.text,
-          timestamp: new Date(),
-        })
+        console.log('🤖 LLM_COMPLETE received!', data)
+        console.log('🤖 Text:', data.text?.substring(0, 100))
+        if (data.text) {
+          console.log('🤖 Adding ASSISTANT message to transcript store')
+          addMessage({
+            id: crypto.randomUUID(),
+            role: 'assistant',
+            content: data.text,
+            timestamp: new Date(),
+          })
+          console.log('🤖 Message added, clearing current response')
+        } else {
+          console.warn('🤖 No text in llm_complete!')
+        }
         clearCurrentResponse()
         break
 
@@ -348,7 +411,7 @@ export function useWebSocket() {
       
       case 'workspace_command':
         console.log('Received workspace_command:', data.command)
-        handleWorkspaceCommand(data.command, data.confirmation_text)
+        await handleWorkspaceCommand(data.command, data.confirmation_text)
         break
     }
   }, [])

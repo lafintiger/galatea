@@ -22,6 +22,7 @@ from .services.background_worker import background_worker
 from .services.user_profile import user_profile_service
 from .services.vision_live import vision_live_service
 from .services.domain_router import domain_router, Domain
+from .services.command_router import command_router
 from .models.schemas import UserSettings
 
 
@@ -1074,6 +1075,14 @@ async def websocket_endpoint(websocket: WebSocket):
                         "content": confirmation_text
                     })
                     
+                    # Send to transcript so UI updates
+                    print(f"[Workspace] Sending llm_complete to frontend: '{confirmation_text[:50]}...'")
+                    await websocket.send_json({
+                        "type": "llm_complete", 
+                        "text": confirmation_text
+                    })
+                    print(f"[Workspace] llm_complete sent successfully")
+                    
                     # NOW we can speak - the action actually succeeded
                     await websocket.send_json({"type": "status", "state": "speaking"})
                     try:
@@ -1099,6 +1108,11 @@ async def websocket_endpoint(websocket: WebSocket):
                     state.messages.append({
                         "role": "assistant",
                         "content": error_msg
+                    })
+                    # Send to transcript
+                    await websocket.send_json({
+                        "type": "llm_complete",
+                        "text": error_msg
                     })
                     await websocket.send_json({"type": "status", "state": "speaking"})
                     try:
@@ -1180,6 +1194,52 @@ async def handle_voice_input(
             "text": transcript,
             "final": True
         })
+        
+        # =====================================================
+        # COMMAND ROUTING via Ministral (agentic tool calling)
+        # =====================================================
+        # Try the intelligent command router first (Ministral 3B)
+        # Falls back to regex patterns if router fails
+        print(f"[CommandRouter] About to route voice transcript: '{transcript}'")
+        try:
+            routed_cmd, routed_response = await command_router.route(transcript)
+            print(f"[CommandRouter] Route result: cmd={routed_cmd}, response={routed_response}")
+            if routed_cmd:
+                action = routed_cmd.get("action")
+                print(f"[CommandRouter] Routed to action: {action}")
+                
+                # Handle different routed actions
+                if action in ["add_todo", "add_note", "complete_todo", "log_data", "open_workspace", "read_todos", "read_notes"]:
+                    await handle_workspace_command(websocket, routed_cmd, routed_response, user_settings, state)
+                    return
+                elif action == "search_web":
+                    query = routed_cmd.get("query", transcript)
+                    await handle_web_search(websocket, state, {"query": query, "original_request": transcript}, user_settings)
+                    return
+                elif action == "open_eyes":
+                    await handle_vision_command(websocket, "open", "Opening my eyes...", user_settings, state)
+                    return
+                elif action == "close_eyes":
+                    await handle_vision_command(websocket, "close", "Closing my eyes.", user_settings, state)
+                    return
+                elif action == "clarify":
+                    # Model wants to clarify with user - send the clarification as response
+                    clarify_msg = routed_cmd.get("message", "Would you like me to add that to your todo list?")
+                    state.messages.append({"role": "user", "content": transcript})
+                    state.messages.append({"role": "assistant", "content": clarify_msg})
+                    await websocket.send_json({"type": "llm_complete", "text": clarify_msg})
+                    await websocket.send_json({"type": "status", "state": "speaking"})
+                    await synthesize_tts(websocket, state, clarify_msg, user_settings)
+                    await websocket.send_json({"type": "status", "state": "idle"})
+                    return
+        except Exception as router_error:
+            import traceback
+            print(f"[CommandRouter] Error (falling back to regex): {router_error}")
+            traceback.print_exc()
+        
+        # =====================================================
+        # FALLBACK: Regex-based detection (if router didn't match)
+        # =====================================================
         
         # Check if this is a vision command (open/close eyes)
         vision_cmd, vision_response = detect_vision_command(transcript)
@@ -1442,16 +1502,33 @@ def detect_workspace_command(text: str) -> tuple[dict | None, str]:
     
     # ===== ADD TODO =====
     # "add todo: ...", "remind me to ...", "task: ..."
+    # More flexible patterns to handle speech variations
     todo_patterns = [
-        r"(?:add|create|make)\s+(?:a\s+)?(?:todo|to-do|to do|task)[:\s]+(.+)",
+        # Explicit todo commands
+        r"(?:add|create|make)\s+(?:a\s+)?(?:todo|to-do|to do|task)[,:\s]+(.+)",
+        r"(?:add|create|make)\s+(?:a\s+)?(?:to-do|todo)[,:\s]+(.+)",
+        # "remind me to X", "tell me to X"
         r"(?:remind|tell)\s+me\s+to\s+(.+)",
+        # "add X to my todo list", "put X on my list"
         r"(?:put|add)\s+(.+?)\s+(?:to|on)\s+(?:the\s+)?(?:my\s+)?(?:todo|to-do|to do|task)\s*list",
-        r"(?:add)\s+(.+?)\s+to\s+(?:the\s+)?(?:my\s+)?list",
-        r"task[:\s]+(.+)",
+        r"(?:add)\s+(.+?)\s+(?:to|on)\s+(?:the\s+)?(?:my\s+)?list",
+        # "I need to X" / "I have to X" / "don't forget to X"
+        r"(?:i\s+)?(?:need|have|got)\s+to\s+(.+)",
+        r"don'?t\s+(?:let\s+me\s+)?forget\s+(?:to\s+)?(.+)",
+        # "task: X"
+        r"task[,:\s]+(.+)",
+        # "todo X" (very direct)
+        r"^to-?do[,:\s]+(.+)",
+        # "my todo is X" / "my task is X"
+        r"(?:my\s+)?(?:todo|to-do|task)\s+(?:is\s+)?[,:\s]+(.+)",
+        # Simple "add X" at start of sentence (last resort, less specific)
+        r"^add\s+[\"']?(.+?)[\"']?(?:\s+(?:to\s+)?(?:my|the)\s+(?:list|todos?))?$",
     ]
     
-    for pattern in todo_patterns:
+    print(f"[Workspace Detection] Checking {len(todo_patterns)} todo patterns...")
+    for i, pattern in enumerate(todo_patterns):
         match = re.search(pattern, text_lower)
+        print(f"[Workspace Detection]   Todo pattern {i}: {pattern[:60]}... -> {'MATCH!' if match else 'no match'}")
         if match:
             # Get original case content
             original_match = re.search(pattern, text, re.IGNORECASE)
@@ -1459,6 +1536,10 @@ def detect_workspace_command(text: str) -> tuple[dict | None, str]:
                 todo_content = text[original_match.start(1):original_match.end(1)].strip()
             else:
                 todo_content = match.group(1).strip()
+            # Clean up the content
+            todo_content = re.sub(r'^(?:that\s+)?(?:i\s+)?(?:need|have|got)\s+to\s+', '', todo_content, flags=re.IGNORECASE)
+            todo_content = re.sub(r'[.,;!?]+$', '', todo_content)  # Remove trailing punctuation
+            print(f"[Workspace Detection] TODO DETECTED: '{todo_content}'")
             return {"action": "add_todo", "content": todo_content}, f"Added to your to-do list: {todo_content}"
     
     # ===== MARK TODO DONE =====
@@ -1565,6 +1646,31 @@ def detect_workspace_command(text: str) -> tuple[dict | None, str]:
     # ===== OPEN WORKSPACE =====
     if re.search(r"(?:open|show)\s+(?:my\s+)?(?:workspace|notes?|todos?|data|tracking)", text_lower):
         return {"action": "open_workspace"}, "Opening your workspace."
+    
+    # ===== FALLBACK DETECTION =====
+    # If text contains "to-do" or "todo" plus something that looks like a task
+    # This catches things like "get more cotton to do list" or "add get more cotton to my to do"
+    fallback_todo = re.search(r"(?:add\s+)?(.+?)\s+(?:to\s+)?(?:my\s+)?(?:to-?do|todo|task)\s*(?:list)?", text_lower)
+    if fallback_todo:
+        content = fallback_todo.group(1).strip()
+        # Clean up common prefixes
+        content = re.sub(r"^(?:add\s+)?(?:a\s+)?", "", content)
+        content = re.sub(r"[.,;!?]+$", "", content)
+        if content and len(content) > 2:
+            print(f"[Workspace Detection] FALLBACK TODO DETECTED: '{content}'")
+            return {"action": "add_todo", "content": content}, f"Added to your to-do list: {content}"
+    
+    # Fallback for notes - if contains "note" and some content
+    fallback_note = re.search(r"(?:add\s+)?(?:a\s+)?note[,:\s]+(.+)", text_lower)
+    if not fallback_note:
+        fallback_note = re.search(r"(.+?)\s+(?:to\s+)?(?:my\s+)?notes?", text_lower)
+    if fallback_note:
+        content = fallback_note.group(1).strip()
+        content = re.sub(r"^(?:add\s+)?(?:a\s+)?", "", content)
+        content = re.sub(r"[.,;!?]+$", "", content)
+        if content and len(content) > 2:
+            print(f"[Workspace Detection] FALLBACK NOTE DETECTED: '{content}'")
+            return {"action": "add_note", "content": content}, f"Got it, I've added that to your notes."
     
     print(f"[Workspace Detection] NO MATCH - text will go to LLM")
     return None, ""
@@ -1693,6 +1799,46 @@ async def handle_text_input(
     
     if not text:
         return
+    
+    # =====================================================
+    # COMMAND ROUTING via Ministral (agentic tool calling)
+    # =====================================================
+    try:
+        routed_cmd, routed_response = await command_router.route(text)
+        if routed_cmd:
+            action = routed_cmd.get("action")
+            print(f"[CommandRouter] Text routed to action: {action}")
+            
+            if action in ["add_todo", "add_note", "complete_todo", "log_data", "open_workspace", "read_todos", "read_notes"]:
+                await handle_workspace_command(websocket, routed_cmd, routed_response, user_settings, state)
+                return
+            elif action == "search_web":
+                query = routed_cmd.get("query", text)
+                await handle_web_search(websocket, state, {"query": query, "original_request": text}, user_settings)
+                return
+            elif action == "open_eyes":
+                await handle_vision_command(websocket, "open", "Opening my eyes...", user_settings, state)
+                return
+            elif action == "close_eyes":
+                await handle_vision_command(websocket, "close", "Closing my eyes.", user_settings, state)
+                return
+            elif action == "clarify":
+                clarify_msg = routed_cmd.get("message", "Would you like me to add that to your todo list?")
+                state.messages.append({"role": "user", "content": text})
+                state.messages.append({"role": "assistant", "content": clarify_msg})
+                await websocket.send_json({"type": "llm_complete", "text": clarify_msg})
+                await websocket.send_json({"type": "status", "state": "speaking"})
+                await synthesize_tts(websocket, state, clarify_msg, user_settings)
+                await websocket.send_json({"type": "status", "state": "idle"})
+                return
+    except Exception as router_error:
+        import traceback
+        print(f"[CommandRouter] Text routing error (falling back): {router_error}")
+        traceback.print_exc()
+    
+    # =====================================================
+    # FALLBACK: Regex-based detection
+    # =====================================================
     
     # Check if this is a vision command (open/close eyes)
     vision_cmd, vision_response = detect_vision_command(text)

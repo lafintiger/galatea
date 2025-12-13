@@ -1,5 +1,26 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+
+// Track rehydration status
+let hasHydrated = false;
+export const getHasHydrated = () => hasHydrated;
+export const waitForHydration = () => new Promise<void>((resolve) => {
+  if (hasHydrated) {
+    resolve();
+    return;
+  }
+  const checkInterval = setInterval(() => {
+    if (hasHydrated) {
+      clearInterval(checkInterval);
+      resolve();
+    }
+  }, 50);
+  // Timeout after 2 seconds
+  setTimeout(() => {
+    clearInterval(checkInterval);
+    resolve();
+  }, 2000);
+});
 
 export interface TodoItem {
   id: string;
@@ -163,12 +184,28 @@ export const useWorkspaceStore = create<WorkspaceState>()(
     }),
     {
       name: 'galatea-workspace',
+      storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({
         notes: state.notes,
         todos: state.todos,
         dataEntries: state.dataEntries,
         lastSaved: state.lastSaved,
       }),
+      onRehydrateStorage: () => {
+        console.log('🔄 Workspace store rehydrating from localStorage...');
+        return (state, error) => {
+          if (error) {
+            console.error('❌ Workspace rehydration error:', error);
+          } else {
+            console.log('✅ Workspace store hydrated!', {
+              notesLength: state?.notes?.length || 0,
+              todoCount: state?.todos?.length || 0,
+              dataCount: state?.dataEntries?.length || 0
+            });
+          }
+          hasHydrated = true;
+        };
+      },
     }
   )
 );
