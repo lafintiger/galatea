@@ -590,7 +590,12 @@ async def generate_response(
             has_owner = await vision_live_service.has_owner()
             
             if has_owner:
+                # IMPORTANT: Refresh vision status to get latest face recognition result
+                # Without this, _current_result may be stale or None
+                await vision_live_service.get_status()
+                
                 name, role = vision_live_service.get_current_identity()
+                logger.debug(f"Face recognition: name='{name}', role='{role}'")
                 
                 if role == "owner":
                     access_mode = "full"
@@ -598,6 +603,10 @@ async def generate_response(
                 elif role in ["friend", "family"]:
                     access_mode = "restricted"
                     current_identity = name
+                elif not name:
+                    # No face detected or recognition failed - give benefit of doubt
+                    logger.debug("No face detected, allowing access")
+                    access_mode = "full"
                 else:
                     access_mode = "denied"
                     
