@@ -1056,6 +1056,71 @@ async def websocket_endpoint(websocket: WebSocket):
                         "message": f"Could not close eyes: {str(e)}"
                     })
             
+            elif msg_type == "workspace_result":
+                # Frontend confirms workspace action succeeded/failed
+                # Only speak if the action actually succeeded
+                success = data.get("success", False)
+                action = data.get("action", "")
+                content = data.get("content", "")
+                confirmation_text = data.get("confirmation_text", "")
+                error = data.get("error", "")
+                
+                print(f"[Workspace] Result received: success={success}, action={action}")
+                
+                if success and confirmation_text:
+                    # Add to conversation
+                    state.messages.append({
+                        "role": "assistant",
+                        "content": confirmation_text
+                    })
+                    
+                    # NOW we can speak - the action actually succeeded
+                    await websocket.send_json({"type": "status", "state": "speaking"})
+                    try:
+                        audio_data = await synthesize_tts(
+                            text=confirmation_text,
+                            voice=user_settings.selected_voice,
+                            provider=getattr(user_settings, 'tts_provider', 'piper'),
+                            speed=getattr(user_settings, 'voice_speed', 1.0)
+                        )
+                        if audio_data:
+                            await websocket.send_json({
+                                "type": "audio_chunk",
+                                "audio": base64.b64encode(audio_data).decode('utf-8'),
+                                "sentence": confirmation_text
+                            })
+                    except Exception as tts_error:
+                        print(f"[Workspace] TTS error: {tts_error}")
+                    await websocket.send_json({"type": "status", "state": "idle"})
+                elif not success:
+                    # Action failed - speak error message
+                    error_msg = f"Sorry, I couldn't {action.replace('_', ' ')}. {error}"
+                    print(f"[Workspace] Action failed: {error_msg}")
+                    state.messages.append({
+                        "role": "assistant",
+                        "content": error_msg
+                    })
+                    await websocket.send_json({"type": "status", "state": "speaking"})
+                    try:
+                        audio_data = await synthesize_tts(
+                            text=error_msg,
+                            voice=user_settings.selected_voice,
+                            provider=getattr(user_settings, 'tts_provider', 'piper'),
+                            speed=getattr(user_settings, 'voice_speed', 1.0)
+                        )
+                        if audio_data:
+                            await websocket.send_json({
+                                "type": "audio_chunk",
+                                "audio": base64.b64encode(audio_data).decode('utf-8'),
+                                "sentence": error_msg
+                            })
+                    except Exception as tts_error:
+                        print(f"[Workspace] TTS error: {tts_error}")
+                    await websocket.send_json({"type": "status", "state": "idle"})
+                else:
+                    # Success but no confirmation text (e.g., open_workspace)
+                    await websocket.send_json({"type": "status", "state": "idle"})
+            
             elif msg_type == "get_vision_status":
                 # Get current vision analysis
                 try:
@@ -1121,6 +1186,13 @@ async def handle_voice_input(
         if vision_cmd:
             print(f"[Vision] Detected vision command: '{vision_cmd}'")
             await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
+            return
+        
+        # Check if this is a workspace command (notes, todos, data)
+        workspace_cmd, workspace_response = detect_workspace_command(transcript)
+        if workspace_cmd:
+            print(f"[Workspace] Detected workspace command: '{workspace_cmd['action']}'")
+            await handle_workspace_command(websocket, workspace_cmd, workspace_response, user_settings, state)
             return
         
         # Check if this is a search request
@@ -1334,6 +1406,215 @@ def detect_vision_command(text: str) -> tuple[str | None, str]:
     return None, ""
 
 
+def detect_workspace_command(text: str) -> tuple[dict | None, str]:
+    """Detect if the user is making a workspace command (notes, todos, data).
+    
+    Returns:
+        (command_dict, response_text) where command_dict has 'action' and optional 'data'
+    """
+    text_lower = text.lower().strip()
+    print(f"[Workspace Detection] Input text: '{text}'")
+    print(f"[Workspace Detection] Lowercase: '{text_lower}'")
+    
+    # ===== ADD NOTE =====
+    # "add note: ...", "add a note, ...", "note this down: ...", "write this down: ..."
+    # Note: [,:\s]+ handles commas from speech transcription
+    note_patterns = [
+        r"(?:add|make|create|write)\s+(?:a\s+)?note[,:\s]+(.+)",
+        r"note\s+(?:this\s+)?(?:down)?[,:\s]+(.+)",
+        r"write\s+(?:this\s+)?down[,:\s]+(.+)",
+        r"remember\s+(?:this|that)?[,:\s]+(.+)",
+        r"save\s+(?:this\s+)?(?:as\s+a\s+)?note[,:\s]+(.+)",
+    ]
+    
+    print(f"[Workspace Detection] Checking {len(note_patterns)} note patterns...")
+    for i, pattern in enumerate(note_patterns):
+        match = re.search(pattern, text_lower)
+        print(f"[Workspace Detection]   Pattern {i}: {pattern[:50]}... -> {'MATCH' if match else 'no match'}")
+        if match:
+            note_content = text[match.start(1):match.end(1)].strip()
+            # Use original case from the text
+            original_match = re.search(pattern, text, re.IGNORECASE)
+            if original_match:
+                note_content = text[original_match.start(1):original_match.end(1)].strip()
+            print(f"[Workspace Detection] NOTE DETECTED: '{note_content}'")
+            return {"action": "add_note", "content": note_content}, f"Got it, I've added that to your notes."
+    
+    # ===== ADD TODO =====
+    # "add todo: ...", "remind me to ...", "task: ..."
+    todo_patterns = [
+        r"(?:add|create|make)\s+(?:a\s+)?(?:todo|to-do|to do|task)[:\s]+(.+)",
+        r"(?:remind|tell)\s+me\s+to\s+(.+)",
+        r"(?:put|add)\s+(.+?)\s+(?:to|on)\s+(?:the\s+)?(?:my\s+)?(?:todo|to-do|to do|task)\s*list",
+        r"(?:add)\s+(.+?)\s+to\s+(?:the\s+)?(?:my\s+)?list",
+        r"task[:\s]+(.+)",
+    ]
+    
+    for pattern in todo_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            # Get original case content
+            original_match = re.search(pattern, text, re.IGNORECASE)
+            if original_match:
+                todo_content = text[original_match.start(1):original_match.end(1)].strip()
+            else:
+                todo_content = match.group(1).strip()
+            return {"action": "add_todo", "content": todo_content}, f"Added to your to-do list: {todo_content}"
+    
+    # ===== MARK TODO DONE =====
+    # "mark X as done", "complete X", "done with X"
+    done_patterns = [
+        r"mark\s+['\"]?(.+?)['\"]?\s+(?:as\s+)?(?:done|complete|finished)",
+        r"(?:i'm\s+)?done\s+with\s+['\"]?(.+)['\"]?",
+        r"(?:i\s+)?(?:completed|finished)\s+['\"]?(.+)['\"]?",
+        r"check\s+off\s+['\"]?(.+)['\"]?",
+    ]
+    
+    for pattern in done_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            todo_text = match.group(1).strip()
+            return {"action": "complete_todo", "search": todo_text}, f"I'll mark that as done."
+    
+    # ===== READ TODOS =====
+    # "what's on my todo list?", "read my todos"
+    if re.search(r"(?:what(?:'s| is)\s+(?:on\s+)?my\s+(?:todo|to-do|task)\s*list|read\s+(?:my\s+)?(?:todos?|to-dos?|tasks?))", text_lower):
+        return {"action": "read_todos"}, "Let me check your to-do list."
+    
+    # ===== READ NOTES =====
+    # "read my notes", "what are my notes"
+    if re.search(r"(?:read|show|what(?:'s| is| are))\s+(?:my\s+)?notes?", text_lower):
+        return {"action": "read_notes"}, "Let me read your notes."
+    
+    # ===== LOG DATA =====
+    # "log 30 minutes exercise", "log weight 185", "track 2000 calories"
+    data_patterns = [
+        # "log X minutes/hours of exercise/running/etc"
+        (r"log\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)\s+(?:of\s+)?(\w+)", "exercise"),
+        # "log exercise 30 minutes"
+        (r"log\s+(exercise|workout|running|walking|cycling|swimming|weights?|yoga)\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)?", "exercise"),
+        # "log weight 185 lbs"
+        (r"log\s+(?:my\s+)?weight\s+(\d+(?:\.\d+)?)\s*(lbs?|pounds?|kg|kilos?)?", "weight"),
+        # "track 2000 calories"
+        (r"(?:log|track)\s+(\d+)\s*(calories?|cals?)", "diet"),
+        # "log sleep 8 hours"
+        (r"log\s+(?:my\s+)?sleep\s+(\d+(?:\.\d+)?)\s*(hours?|hrs?)?", "sleep"),
+        # "log water 64 oz"
+        (r"log\s+(?:my\s+)?water\s+(\d+)\s*(oz|ounces?|cups?|glasses?|liters?|ml)?", "water"),
+    ]
+    
+    for pattern, data_type in data_patterns:
+        match = re.search(pattern, text_lower)
+        if match:
+            groups = match.groups()
+            if data_type == "exercise" and len(groups) >= 3:
+                if groups[0].isdigit():
+                    # "log 30 minutes of running"
+                    value = groups[0]
+                    unit = groups[1]
+                    activity = groups[2] if len(groups) > 2 else "exercise"
+                else:
+                    # "log running 30 minutes"
+                    activity = groups[0]
+                    value = groups[1]
+                    unit = groups[2] if groups[2] else "minutes"
+                return {
+                    "action": "log_data",
+                    "type": "exercise",
+                    "value": value,
+                    "unit": unit,
+                    "notes": activity
+                }, f"Logged {value} {unit} of {activity}."
+            elif data_type == "weight":
+                value = groups[0]
+                unit = groups[1] if groups[1] else "lbs"
+                return {
+                    "action": "log_data",
+                    "type": "weight",
+                    "value": value,
+                    "unit": unit
+                }, f"Logged weight: {value} {unit}."
+            elif data_type == "diet":
+                value = groups[0]
+                unit = "calories"
+                return {
+                    "action": "log_data",
+                    "type": "diet",
+                    "value": value,
+                    "unit": unit
+                }, f"Logged {value} calories."
+            elif data_type == "sleep":
+                value = groups[0]
+                unit = groups[1] if groups[1] else "hours"
+                return {
+                    "action": "log_data",
+                    "type": "sleep",
+                    "value": value,
+                    "unit": unit
+                }, f"Logged {value} {unit} of sleep."
+            elif data_type == "water":
+                value = groups[0]
+                unit = groups[1] if groups[1] else "oz"
+                return {
+                    "action": "log_data",
+                    "type": "water",
+                    "value": value,
+                    "unit": unit
+                }, f"Logged {value} {unit} of water."
+    
+    # ===== OPEN WORKSPACE =====
+    if re.search(r"(?:open|show)\s+(?:my\s+)?(?:workspace|notes?|todos?|data|tracking)", text_lower):
+        return {"action": "open_workspace"}, "Opening your workspace."
+    
+    print(f"[Workspace Detection] NO MATCH - text will go to LLM")
+    return None, ""
+
+
+async def handle_workspace_command(
+    websocket: WebSocket,
+    command: dict,
+    response_text: str,
+    user_settings: UserSettings,
+    state
+):
+    """Handle workspace commands (notes, todos, data logging)
+    
+    IMPORTANT: We do NOT speak confirmation here anymore.
+    The frontend will confirm when the action succeeds, and we speak THEN.
+    This ensures Gala never lies about adding something that failed.
+    """
+    try:
+        action = command.get("action")
+        content = command.get("content", "")
+        
+        # Send the workspace command to the frontend
+        # Include the response_text so frontend can trigger speech on success
+        await websocket.send_json({
+            "type": "workspace_command",
+            "command": command,
+            "confirmation_text": response_text
+        })
+        print(f"[Workspace] Sent command to frontend (awaiting confirmation): {command}")
+        
+        # Add user action to conversation (but NOT the response yet - that comes on confirmation)
+        state.messages.append({
+            "role": "user",
+            "content": f"[Workspace: {action}] {content}"
+        })
+        
+        # Set status to processing - frontend will set to speaking/idle
+        await websocket.send_json({"type": "status", "state": "processing"})
+        
+    except Exception as e:
+        error_msg = f"I couldn't complete that workspace action: {str(e)}"
+        print(f"[Workspace] Error: {error_msg}")
+        await websocket.send_json({
+            "type": "error",
+            "message": error_msg
+        })
+        await websocket.send_json({"type": "status", "state": "idle"})
+
+
 async def handle_vision_command(
     websocket: WebSocket,
     command: str,
@@ -1376,7 +1657,21 @@ async def handle_vision_command(
         
         # Speak the response
         await websocket.send_json({"type": "status", "state": "speaking"})
-        await speak_response(websocket, state, response_text, user_settings)
+        try:
+            audio_data = await synthesize_tts(
+                text=response_text,
+                voice=user_settings.selected_voice,
+                provider=getattr(user_settings, 'tts_provider', 'piper'),
+                speed=getattr(user_settings, 'voice_speed', 1.0)
+            )
+            if audio_data:
+                await websocket.send_json({
+                    "type": "audio_chunk",
+                    "audio": base64.b64encode(audio_data).decode('utf-8'),
+                    "sentence": response_text
+                })
+        except Exception as tts_error:
+            print(f"[Vision] TTS error: {tts_error}")
         await websocket.send_json({"type": "status", "state": "idle"})
         
     except Exception as e:
@@ -1403,6 +1698,15 @@ async def handle_text_input(
     vision_cmd, vision_response = detect_vision_command(text)
     if vision_cmd:
         await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
+        return
+    
+    # Check if this is a workspace command (notes, todos, data)
+    print(f"[DEBUG] Checking for workspace command in: '{text}'")
+    workspace_cmd, workspace_response = detect_workspace_command(text)
+    print(f"[DEBUG] Workspace detection result: {workspace_cmd}")
+    if workspace_cmd:
+        print(f"[Workspace] Detected workspace command: '{workspace_cmd['action']}'")
+        await handle_workspace_command(websocket, workspace_cmd, workspace_response, user_settings, state)
         return
     
     # Check if this is a search request
@@ -1550,9 +1854,9 @@ async def generate_response(
         try:
             audio_data = await synthesize_tts(
                 text=denial_message,
-                voice=user_settings.tts_voice,
-                provider=user_settings.tts_provider,
-                speed=user_settings.tts_speed,
+                voice=user_settings.selected_voice,
+                provider=getattr(user_settings, 'tts_provider', 'piper'),
+                speed=getattr(user_settings, 'voice_speed', 1.0),
             )
             if audio_data:
                 await websocket.send_json({

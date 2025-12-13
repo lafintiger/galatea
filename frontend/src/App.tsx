@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { VoiceInterface } from './components/VoiceInterface'
 import { Settings } from './components/Settings'
 import { Transcript } from './components/Transcript'
@@ -6,17 +6,51 @@ import { StatusBar } from './components/StatusBar'
 import { HistoryPanel } from './components/HistoryPanel'
 import { SearchResultsPanel } from './components/SearchResultsPanel'
 import { OnboardingPanel } from './components/OnboardingPanel'
+import WorkspacePanel from './components/WorkspacePanel'
 import { useWebSocket } from './hooks/useWebSocket'
 import { useSettingsStore } from './stores/settingsStore'
 import { useConversationStore } from './stores/conversationStore'
-import { Settings as SettingsIcon, Clock, User } from 'lucide-react'
+import { useWorkspaceStore } from './stores/workspaceStore'
+import { Settings as SettingsIcon, Clock, User, PanelRightOpen, GripHorizontal } from 'lucide-react'
 
 function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showOnboarding, setShowOnboarding] = useState(false)
+  const [transcriptHeight, setTranscriptHeight] = useState(200) // Default height in pixels
+  const isDraggingRef = useRef(false)
+  const startYRef = useRef(0)
+  const startHeightRef = useRef(0)
+
+  // Handle resize drag
+  const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    isDraggingRef.current = true
+    startYRef.current = e.clientY
+    startHeightRef.current = transcriptHeight
+    document.body.style.cursor = 'ns-resize'
+    document.body.style.userSelect = 'none'
+    
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      const delta = startYRef.current - e.clientY
+      const newHeight = Math.max(100, Math.min(600, startHeightRef.current + delta))
+      setTranscriptHeight(newHeight)
+    }
+    
+    const handleMouseUp = () => {
+      isDraggingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', handleMouseMove)
+      document.removeEventListener('mouseup', handleMouseUp)
+    }
+    
+    document.addEventListener('mousemove', handleMouseMove)
+    document.addEventListener('mouseup', handleMouseUp)
+  }, [transcriptHeight])
   const { settings } = useSettingsStore()
   const { searchResults } = useConversationStore()
+  const { isOpen: workspaceOpen, setIsOpen: setWorkspaceOpen } = useWorkspaceStore()
   const websocket = useWebSocket()
 
   // Close other panels when opening one
@@ -75,6 +109,16 @@ function App() {
           >
             <SettingsIcon className="w-5 h-5 text-cyber-accent" />
           </button>
+          <button
+            onClick={() => setWorkspaceOpen(!workspaceOpen)}
+            className={`p-2 rounded-lg border transition-all
+                       ${workspaceOpen 
+                         ? 'border-cyber-pink bg-cyber-pink/20' 
+                         : 'border-cyber-accent/30 hover:border-cyber-accent hover:bg-cyber-accent/10'}`}
+            title="Workspace (Notes, Todos, Data)"
+          >
+            <PanelRightOpen className={`w-5 h-5 ${workspaceOpen ? 'text-cyber-pink' : 'text-cyber-accent'}`} />
+          </button>
         </div>
       </header>
 
@@ -120,15 +164,29 @@ function App() {
         </div>
       )}
 
-      {/* Transcript - Bottom */}
+      {/* Transcript - Bottom (Resizable) */}
       {settings.transcript_visible && (
-        <div className="relative z-10 border-t border-cyber-accent/20">
-          <Transcript onClear={websocket.clearHistory} />
+        <div className="relative z-10 flex flex-col">
+          {/* Resize Handle */}
+          <div 
+            onMouseDown={handleMouseDown}
+            className="h-2 bg-cyber-dark border-t border-b border-cyber-accent/20 cursor-ns-resize 
+                       hover:bg-cyber-accent/10 transition-colors flex items-center justify-center group"
+          >
+            <GripHorizontal className="w-6 h-4 text-cyber-accent/30 group-hover:text-cyber-accent/60 transition-colors" />
+          </div>
+          {/* Transcript Content */}
+          <div style={{ height: transcriptHeight }} className="overflow-hidden">
+            <Transcript onClear={websocket.clearHistory} />
+          </div>
         </div>
       )}
 
       {/* Status Bar */}
       <StatusBar />
+
+      {/* Workspace Panel - Right side drawer */}
+      <WorkspacePanel />
 
       {/* Onboarding Panel (Modal) */}
       <OnboardingPanel 

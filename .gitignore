@@ -45,3 +45,8 @@ logs/
 
 
 
+# Camera preview images
+camera*_preview.jpg
+
+# Vision face data (local only)
+vision/data/

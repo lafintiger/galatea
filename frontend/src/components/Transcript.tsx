@@ -30,14 +30,14 @@ export function Transcript({ onClear }: TranscriptProps) {
 
   if (messages.length === 0 && !currentTranscript && !currentResponse) {
     return (
-      <div className="h-32 flex items-center justify-center text-slate-500">
+      <div className="h-full flex items-center justify-center text-slate-500">
         <p className="text-sm">Conversation transcript will appear here...</p>
       </div>
     )
   }
 
   return (
-    <div className="relative">
+    <div className="relative h-full flex flex-col">
       {/* Action buttons */}
       {messages.length > 0 && (
         <div className="absolute top-2 right-2 flex gap-2 z-10">
@@ -99,7 +99,7 @@ export function Transcript({ onClear }: TranscriptProps) {
       
       <div 
         ref={scrollRef}
-        className="h-48 overflow-y-auto p-4 space-y-3"
+        className="flex-1 overflow-y-auto p-4 space-y-3"
       >
       {messages.map((message) => (
         <div

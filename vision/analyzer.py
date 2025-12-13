@@ -358,7 +358,8 @@ class VisionAnalyzer:
                 # Emotion
                 if 'emotion' in analysis:
                     emotions = analysis['emotion']
-                    result.emotion_scores = emotions
+                    # Convert numpy floats to Python floats for JSON serialization
+                    result.emotion_scores = {k: float(v) for k, v in emotions.items()}
                     result.emotion = max(emotions, key=emotions.get)
                 
                 # Age
@@ -370,15 +371,16 @@ class VisionAnalyzer:
                     gender_data = analysis['gender']
                     if isinstance(gender_data, dict):
                         result.gender = max(gender_data, key=gender_data.get)
-                        result.gender_confidence = gender_data.get(result.gender, 0) / 100
+                        result.gender_confidence = float(gender_data.get(result.gender, 0)) / 100
                     else:
                         result.gender = str(gender_data)
                 
                 # Face confidence (from region if available)
                 if 'face_confidence' in analysis:
-                    result.face_confidence = analysis['face_confidence']
+                    result.face_confidence = float(analysis['face_confidence']) if analysis['face_confidence'] is not None else None
                 elif 'region' in analysis:
-                    result.face_confidence = analysis['region'].get('confidence', None)
+                    conf = analysis['region'].get('confidence', None)
+                    result.face_confidence = float(conf) if conf is not None else None
                 
                 # Face Recognition - identify who this is
                 if do_recognition and self.face_db.has_owner():
@@ -388,7 +390,7 @@ class VisionAnalyzer:
                             name, role, confidence = self.identify_face(embedding)
                             result.identity = name
                             result.identity_role = role if role else "unknown"
-                            result.identity_confidence = confidence
+                            result.identity_confidence = float(confidence) if confidence is not None else None
                             result.is_owner = (role == "owner")
                             
                             if name:

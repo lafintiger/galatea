@@ -148,6 +148,27 @@ export function OnboardingPanel({ isOpen, onClose }: OnboardingPanelProps) {
     }
   };
 
+  // Capture from Vision service (same camera Gala uses)
+  const captureFromVision = async () => {
+    setIsLoading(true);
+    setEnrollMessage(null);
+    try {
+      const res = await fetch('/api/faces/capture', { method: 'POST' });
+      const data = await res.json();
+      if (data.image) {
+        setCapturedImage(data.image);
+        setEnrollMessage({ type: 'success', text: 'Photo captured from Gala\'s camera!' });
+      } else {
+        setEnrollMessage({ type: 'error', text: data.error || 'Failed to capture' });
+      }
+    } catch (err) {
+      console.error('Vision capture error:', err);
+      setEnrollMessage({ type: 'error', text: 'Could not capture from Vision service' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const enrollFace = async () => {
     if (!enrollName.trim()) {
       setEnrollMessage({ type: 'error', text: 'Please enter a name' });
@@ -661,21 +682,46 @@ export function OnboardingPanel({ isOpen, onClose }: OnboardingPanelProps) {
                             alt="Captured" 
                             className="w-full rounded-lg"
                           />
-                          <button
-                            onClick={() => { setCapturedImage(null); startCamera(); }}
-                            className="absolute top-2 right-2 px-3 py-1 bg-gray-800/80 text-white text-sm rounded hover:bg-gray-700 transition-colors"
-                          >
-                            Retake
-                          </button>
+                          <div className="absolute top-2 right-2 flex gap-2">
+                            <button
+                              onClick={() => setCapturedImage(null)}
+                              className="px-3 py-1 bg-gray-800/80 text-white text-sm rounded hover:bg-gray-700 transition-colors"
+                            >
+                              ✕ Clear
+                            </button>
+                            <button
+                              onClick={captureFromVision}
+                              disabled={isLoading}
+                              className="px-3 py-1 bg-cyan-600/80 text-white text-sm rounded hover:bg-cyan-500 transition-colors disabled:opacity-50"
+                            >
+                              {isLoading ? '...' : '🔄 Retake'}
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <button
-                          onClick={startCamera}
-                          className="w-full h-48 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-cyan-500 hover:bg-cyan-500/5 transition-colors"
-                        >
-                          <div className="text-4xl">📷</div>
-                          <div className="text-gray-400">Click to start camera</div>
-                        </button>
+                        <div className="space-y-3">
+                          {/* Capture from Vision Service - recommended */}
+                          <button
+                            onClick={captureFromVision}
+                            disabled={isLoading || !visionAvailable}
+                            className="w-full h-32 border-2 border-cyan-500/50 bg-cyan-500/10 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-cyan-400 hover:bg-cyan-500/20 transition-colors disabled:opacity-50"
+                          >
+                            <div className="text-3xl">👁️</div>
+                            <div className="text-cyan-400 font-medium">
+                              {isLoading ? 'Capturing...' : 'Capture from Gala\'s Camera'}
+                            </div>
+                            <div className="text-xs text-gray-500">Recommended - uses same camera as Vision</div>
+                          </button>
+                          
+                          {/* Or use browser camera */}
+                          <button
+                            onClick={startCamera}
+                            className="w-full h-20 border-2 border-dashed border-gray-600 rounded-lg flex flex-col items-center justify-center gap-1 hover:border-gray-500 hover:bg-gray-800/50 transition-colors"
+                          >
+                            <div className="text-xl">📷</div>
+                            <div className="text-gray-400 text-sm">Or use browser camera</div>
+                          </button>
+                        </div>
                       )}
                     </div>
 

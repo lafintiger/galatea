@@ -736,6 +736,31 @@ Gala learns about the user through a flexible onboarding questionnaire.
 - `backend/app/services/user_profile.py` - Profile service with questions
 - `frontend/src/components/OnboardingPanel.tsx` - Onboarding UI
 
+### 15. Workspace (Notes, Todos, Data Tracking)
+
+Gala has a built-in workspace for notes, todos, and data tracking.
+
+**Access:**
+- Click the 📝 button in the header to open/close the workspace panel
+- Or use voice commands
+
+**Voice Commands:**
+| Command | Example | Action |
+|---------|---------|--------|
+| Add note | "Add note: call mom tomorrow" | Appends to notes |
+| Add todo | "Add todo: clean my room" | Creates a todo item |
+| Log data | "Log exercise: 30 min running" | Tracks data entry |
+
+**Tabs:**
+- **Notes**: Markdown notes area (persists to localStorage)
+- **Todos**: Checkbox todo list with completion tracking
+- **Data**: Track exercise, weight, diet, sleep, etc. with CSV/JSON export
+
+**Files:**
+- `frontend/src/stores/workspaceStore.ts` - Zustand store with localStorage persistence
+- `frontend/src/components/WorkspacePanel.tsx` - Collapsible panel UI
+- `backend/app/main.py` - Voice command detection (`detect_workspace_command`)
+
 ---
 
 ## 🎨 UI/UX Decisions
@@ -822,6 +847,9 @@ docker start wyoming-whisper piper
 | **Face Recognition** | Owner enrollment, friend/family registration, access control based on identity |
 | **Privacy Access Control** | Owner: full access, Friends: limited, Strangers: denied |
 | **Domain Routing** | Auto-switch to specialist models (medical, legal, coding, math) based on query |
+| **Workspace Panel** | Notes, todos, and data tracking with voice commands ("add note", "add todo") |
+| **Draggable Resizers** | Transcript and workspace panels have resize handles |
+| **Face ID Improvements** | Capture directly from Vision service camera, better retake flow |
 
 ### 📋 Phase 6: Future Features
 

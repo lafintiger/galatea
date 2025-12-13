@@ -1,6 +1,7 @@
 import { useEffect, useRef, useCallback } from 'react'
 import { useConversationStore } from '../stores/conversationStore'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useWorkspaceStore } from '../stores/workspaceStore'
 
 export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null)
@@ -96,6 +97,134 @@ export function useWebSocket() {
       }
     }
   }, [])
+
+  // Handle workspace commands from backend
+  // Now sends confirmation back so backend only speaks on success
+  const handleWorkspaceCommand = (command: any, confirmationText?: string) => {
+    let success = false
+    let errorMessage = ''
+    
+    try {
+      const workspace = useWorkspaceStore.getState()
+      
+      console.log('📝 Workspace command received:', command)
+      console.log('📝 Action type:', typeof command.action, `"${command.action}"`)
+      
+      switch (command.action) {
+        case 'add_note':
+          console.log('✅ MATCHED add_note case')
+          console.log('Adding note:', command.content)
+          const notesBefore = workspace.notes
+          workspace.appendToNotes(command.content)
+          const notesAfter = useWorkspaceStore.getState().notes
+          console.log('Notes before:', notesBefore?.length || 0, 'chars')
+          console.log('Notes after:', notesAfter?.length || 0, 'chars')
+          // Verify the note was actually added
+          if (notesAfter && notesAfter.includes(command.content)) {
+            success = true
+            console.log('✅ Note verified in store')
+          } else {
+            errorMessage = 'Note was not added to store'
+            console.error('❌ Note NOT found in store after append!')
+          }
+          workspace.setIsOpen(true)
+          workspace.setActiveTab('notes')
+          break
+          
+        case 'add_todo':
+          console.log('✅ MATCHED add_todo case')
+          const todosBefore = workspace.todos.length
+          workspace.addTodo(command.content)
+          const todosAfter = useWorkspaceStore.getState().todos.length
+          if (todosAfter > todosBefore) {
+            success = true
+            console.log('✅ Todo verified in store')
+          } else {
+            errorMessage = 'Todo was not added to store'
+            console.error('❌ Todo count did not increase!')
+          }
+          workspace.setIsOpen(true)
+          workspace.setActiveTab('todos')
+          break
+        
+      case 'complete_todo':
+        // Find a todo that matches the search text
+        const allTodos = workspace.todos
+        const matchingTodo = allTodos.find(t => 
+          t.text.toLowerCase().includes(command.search.toLowerCase()) && !t.done
+        )
+        if (matchingTodo) {
+          workspace.toggleTodo(matchingTodo.id)
+          success = true
+        } else {
+          errorMessage = `Could not find todo matching "${command.search}"`
+        }
+        workspace.setIsOpen(true)
+        workspace.setActiveTab('todos')
+        break
+        
+      case 'read_todos':
+        workspace.setIsOpen(true)
+        workspace.setActiveTab('todos')
+        success = true
+        break
+        
+      case 'read_notes':
+        workspace.setIsOpen(true)
+        workspace.setActiveTab('notes')
+        success = true
+        break
+        
+      case 'log_data':
+        const entriesBefore = workspace.dataEntries.length
+        workspace.addDataEntry({
+          type: command.type,
+          date: new Date().toISOString().split('T')[0],
+          value: command.value,
+          unit: command.unit,
+          notes: command.notes
+        })
+        const entriesAfter = useWorkspaceStore.getState().dataEntries.length
+        if (entriesAfter > entriesBefore) {
+          success = true
+        } else {
+          errorMessage = 'Data entry was not added'
+        }
+        workspace.setIsOpen(true)
+        workspace.setActiveTab('data')
+        break
+        
+      case 'open_workspace':
+        workspace.setIsOpen(true)
+        success = true
+        break
+        
+      default:
+        console.log('❌ UNMATCHED action:', command.action)
+        errorMessage = `Unknown action: ${command.action}`
+    }
+    } catch (error) {
+      console.error('❌ Error in handleWorkspaceCommand:', error)
+      errorMessage = error instanceof Error ? error.message : 'Unknown error'
+    }
+    
+    // Send confirmation back to backend
+    // Backend will ONLY speak if we confirm success
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      const confirmMsg = {
+        type: 'workspace_result',
+        success,
+        action: command.action,
+        content: command.content,
+        confirmation_text: confirmationText,
+        error: errorMessage || undefined
+      }
+      console.log('📤 Sending workspace confirmation:', confirmMsg)
+      wsRef.current.send(JSON.stringify(confirmMsg))
+    } else {
+      console.error('❌ Cannot send confirmation - WebSocket not open')
+    }
+  }
 
   const handleMessage = useCallback(async (data: any) => {
     switch (data.type) {
@@ -215,6 +344,11 @@ export function useWebSocket() {
             attentive: r.attentive || false,
           })
         }
+        break
+      
+      case 'workspace_command':
+        console.log('Received workspace_command:', data.command)
+        handleWorkspaceCommand(data.command, data.confirmation_text)
         break
     }
   }, [])
