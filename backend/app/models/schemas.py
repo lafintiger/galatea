@@ -11,7 +11,7 @@ class SpecialistModels(BaseModel):
     coding: str = "qwen2.5-coder:7b"
     math: str = "mathstral:7b"
     finance: str = ""  # Disabled by default
-    science: str = ""  # Disabled by default
+    science: str = "rnj-1:latest"  # STEM specialist (Essential AI, 8B)
     creative: str = ""  # Disabled by default
     knowledge: str = "gpt-oss:latest"  # Slower but more capable
     personality: str = "dominique:latest"  # More expressive personality

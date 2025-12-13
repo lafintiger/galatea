@@ -176,6 +176,8 @@ DEFAULT_SPECIALISTS = {
             r"\b(cell|dna|rna|protein|gene|chromosome)\b",
             r"\b(force|energy|mass|velocity|acceleration)\b",
             r"\b(evolution|species|ecosystem|biodiversity)\b",
+            r"\b(stem|engineering|technical|scientific)\b",
+            r"\b(thermodynamics|electromagnetism|optics)\b",
         ],
         keywords=[
             "science", "scientific", "research", "experiment",
@@ -183,11 +185,13 @@ DEFAULT_SPECIALISTS = {
             "quantum", "relativity", "particle", "wave",
             "evolution", "genetics", "neuroscience",
             "climate", "environment", "ecology",
+            "stem", "engineering", "technical", "mechanics",
+            "circuits", "electronics", "thermodynamics",
         ],
-        model="phi3:latest",  # General model
-        model_size="3.8B",
-        description="Science and research specialist",
-        enabled=False,  # Disabled by default
+        model="rnj-1:latest",  # Essential AI STEM specialist (8B, excels at code/math/science)
+        model_size="8B",
+        description="STEM specialist - science, engineering, and technical questions",
+        enabled=True,  # Enabled - rnj-1 is excellent for STEM
     ),
     
     Domain.CREATIVE: DomainConfig(
@@ -412,7 +416,7 @@ When you use a routing tag, briefly acknowledge that you're consulting specialis
             Domain.CODING: "Switching to my programming specialist mode...",
             Domain.MATH: "Let me engage my mathematical reasoning...",
             Domain.FINANCE: "Consulting my financial analysis capabilities...",
-            Domain.SCIENCE: "Accessing my scientific knowledge base...",
+            Domain.SCIENCE: "Let me engage my STEM expertise for this...",
             Domain.CREATIVE: "Engaging creative writing mode...",
             Domain.KNOWLEDGE: "Alright, let me really think about this one...",
             Domain.PERSONALITY: "Oh honey, you want the real me? Here we go!",
