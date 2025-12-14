@@ -154,3 +154,4 @@ def get_logger(name: str) -> logging.Logger:
 
 # Initialize logging on import (can be reconfigured later)
 setup_logging()
+

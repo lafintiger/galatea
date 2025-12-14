@@ -251,3 +251,4 @@ class ConfigurationError(GalateaError):
             details = f"Expected {expected}"
         
         super().__init__(message, details)
+

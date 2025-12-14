@@ -115,3 +115,4 @@ def detect_sentence_boundary(buffer: str) -> tuple[Optional[str], str]:
             return sentence, remainder
     
     return None, buffer
+

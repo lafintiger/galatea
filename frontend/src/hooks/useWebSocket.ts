@@ -223,7 +223,38 @@ export function useWebSocket() {
         }
         console.log('📝 Notes summary:', confirmationText)
         break
-        
+
+      case 'clear_todos':
+        console.log('✅ MATCHED clear_todos case')
+        const todosBeforeClear = store.getState().todos.length
+        store.getState().clearAllTodos()
+        const todosAfterClear = store.getState().todos.length
+        if (todosAfterClear === 0) {
+          success = true
+          console.log(`✅ Cleared ${todosBeforeClear} todos`)
+        } else {
+          errorMessage = 'Failed to clear todos'
+          console.error('❌ Todos not cleared')
+        }
+        store.getState().setIsOpen(true)
+        store.getState().setActiveTab('todos')
+        break
+
+      case 'clear_notes':
+        console.log('✅ MATCHED clear_notes case')
+        store.getState().clearNotes()
+        const notesAfterClear = store.getState().notes
+        if (!notesAfterClear || notesAfterClear.length === 0) {
+          success = true
+          console.log('✅ Notes cleared')
+        } else {
+          errorMessage = 'Failed to clear notes'
+          console.error('❌ Notes not cleared')
+        }
+        store.getState().setIsOpen(true)
+        store.getState().setActiveTab('notes')
+        break
+
       case 'log_data':
         console.log('✅ MATCHED log_data case')
         const entriesBefore = store.getState().dataEntries.length

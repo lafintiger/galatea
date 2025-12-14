@@ -79,6 +79,8 @@ Say any of these to trigger a web search:
 | | "Remember this: Password is 1234" |
 | Read notes | "Read my notes" |
 | Open notes | "Open my workspace" |
+| **Clear all notes** | "Clear my notes", "Delete all notes" |
+| | "Wipe my notes", "Erase my notes" |
 
 ### Todos
 
@@ -92,6 +94,8 @@ Say any of these to trigger a web search:
 | | "Done with the report" |
 | | "I finished calling mom" |
 | Read todos | "What's on my todo list?" |
+| **Clear all todos** | "Clear my todos", "Delete all my todos" |
+| | "Wipe my todo list", "Empty my list" |
 
 ### Data Tracking
 

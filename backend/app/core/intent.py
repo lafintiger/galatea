@@ -394,3 +394,4 @@ def detect_workspace_command(text: str) -> tuple[Optional[dict], str]:
     
     logger.debug("No workspace command detected")
     return None, ""
+

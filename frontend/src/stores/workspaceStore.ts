@@ -68,6 +68,10 @@ export interface WorkspaceState {
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
   clearCompletedTodos: () => void;
+  clearAllTodos: () => void;
+  
+  // Clear all
+  clearNotes: () => void;
   
   // Data actions
   addDataEntry: (entry: Omit<DataEntry, 'id'>) => void;
@@ -130,6 +134,10 @@ export const useWorkspaceStore = create<WorkspaceState>()(
       clearCompletedTodos: () => set((state) => ({
         todos: state.todos.filter(todo => !todo.done)
       })),
+      
+      clearAllTodos: () => set({ todos: [] }),
+      
+      clearNotes: () => set({ notes: '', lastSaved: new Date().toISOString() }),
       
       // Data actions
       addDataEntry: (entry) => set((state) => ({

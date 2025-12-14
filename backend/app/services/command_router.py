@@ -180,6 +180,30 @@ TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "clear_todos",
+            "description": "Delete ALL todos from the user's to-do list. Use when user says 'clear my todos', 'delete all todos', 'remove all tasks', 'empty my todo list', 'wipe my list'.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "clear_notes",
+            "description": "Delete ALL notes. Use when user says 'clear my notes', 'delete all notes', 'wipe my notes', 'erase my notes'.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "no_tool_needed",
             "description": "Use this when the user is just having a conversation and doesn't need any action taken. For greetings, questions about you, opinions, explanations, jokes, etc.",
             "parameters": {
@@ -338,6 +362,14 @@ class CommandRouter:
         elif tool_name == "read_notes":
             print(f"[CommandRouter] read_notes tool called")
             return {"action": "read_notes"}
+        
+        elif tool_name == "clear_todos":
+            print(f"[CommandRouter] clear_todos tool called")
+            return {"action": "clear_todos"}
+        
+        elif tool_name == "clear_notes":
+            print(f"[CommandRouter] clear_notes tool called")
+            return {"action": "clear_notes"}
             
         elif tool_name == "no_tool_needed":
             # Explicitly no tool - pass to main LLM
@@ -377,6 +409,12 @@ class CommandRouter:
             
         elif tool_name == "read_notes":
             return "Let me check your notes..."
+        
+        elif tool_name == "clear_todos":
+            return "All done! I've cleared your entire to-do list."
+        
+        elif tool_name == "clear_notes":
+            return "Done! I've cleared all your notes."
             
         return "Got it."
 

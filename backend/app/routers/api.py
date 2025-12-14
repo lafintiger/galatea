@@ -808,3 +808,4 @@ async def configure_routing(
             status_code=400,
             content={"success": False, "error": f"Unknown domain: {domain}"}
         )
+

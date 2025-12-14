@@ -210,7 +210,7 @@ async def handle_voice_input(
                 action = routed_cmd.get("action")
                 logger.debug(f"Routed to action: {action}")
                 
-                if action in ["add_todo", "add_note", "complete_todo", "log_data", "open_workspace", "read_todos", "read_notes"]:
+                if action in ["add_todo", "add_note", "complete_todo", "log_data", "open_workspace", "read_todos", "read_notes", "clear_todos", "clear_notes"]:
                     await handle_workspace_command(websocket, routed_cmd, routed_response, user_settings, state)
                     return
                 elif action == "search_web":
@@ -286,7 +286,7 @@ async def handle_text_input(
             action = routed_cmd.get("action")
             logger.debug(f"Text routed to action: {action}")
             
-            if action in ["add_todo", "add_note", "complete_todo", "log_data", "open_workspace", "read_todos", "read_notes"]:
+            if action in ["add_todo", "add_note", "complete_todo", "log_data", "open_workspace", "read_todos", "read_notes", "clear_todos", "clear_notes"]:
                 await handle_workspace_command(websocket, routed_cmd, routed_response, user_settings, state)
                 return
             elif action == "search_web":
@@ -919,3 +919,4 @@ async def generate_response(
     finally:
         state.is_speaking = False
         await websocket.send_json({"type": "status", "state": "idle"})
+
