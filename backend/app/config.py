@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     vision_host: str = "localhost"
     vision_port: int = 8020
     
+    # Home Assistant (MCP Integration)
+    ha_url: str = ""  # e.g., http://homeassistant.local:8123
+    ha_token: str = ""  # Long-lived access token
+    
+    # Docker Management (MCP Integration)
+    docker_enabled: bool = True  # Enable Docker container management
+    
     # Database
     database_url: str = "sqlite+aiosqlite:///./data/galatea.db"
     chroma_path: str = "./data/chroma"

@@ -190,6 +190,50 @@ Gala automatically switches to specialist models for certain topics:
 
 ---
 
+## 🐳 Docker Management (MCP)
+
+Control Docker containers with voice commands:
+
+| Command | Example |
+|---------|---------|
+| **List containers** | "What containers are running?" |
+| | "Show docker status" |
+| | "List my containers" |
+| **Check status** | "Is whisper running?" |
+| | "Check ollama status" |
+| | "Is the vision service healthy?" |
+| **Restart container** | "Restart the whisper container" |
+| | "Restart piper" |
+| | "Restart kokoro" |
+| **View logs** | "Show whisper logs" |
+| | "What errors in piper?" |
+| | "Check the logs for ollama" |
+
+---
+
+## 🏠 Home Assistant (MCP)
+
+Control smart home devices (requires HA_URL and HA_TOKEN in .env):
+
+| Command | Example |
+|---------|---------|
+| **Turn on** | "Turn on the living room lights" |
+| | "Switch on the bedroom fan" |
+| | "Turn on kitchen light to 50%" |
+| **Turn off** | "Turn off the lights" |
+| | "Switch off the fan" |
+| **Temperature** | "Set temperature to 72" |
+| | "Make it warmer" |
+| | "Set thermostat to 68" |
+| **Check state** | "Is the front door locked?" |
+| | "What's the temperature?" |
+| | "Is the garage door closed?" |
+| **List devices** | "What devices do I have?" |
+| | "Show my lights" |
+| | "List smart home devices" |
+
+---
+
 ## 🔒 Face Recognition & Access Control
 
 | Role | Access Level |

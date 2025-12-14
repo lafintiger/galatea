@@ -201,6 +201,178 @@ TOOLS = [
             }
         }
     },
+    # =========================================
+    # Docker Container Management (MCP)
+    # =========================================
+    {
+        "type": "function",
+        "function": {
+            "name": "docker_list",
+            "description": "List Docker containers. Use when user asks 'what containers are running', 'show docker status', 'list containers', 'what services are up'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "all": {
+                        "type": "boolean",
+                        "description": "Include stopped containers (default: true)"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "docker_restart",
+            "description": "Restart a Docker container. Use when user says 'restart whisper', 'restart the piper container', 'restart ollama'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "container": {
+                        "type": "string",
+                        "description": "Container name (e.g., whisper, piper, ollama, kokoro, vision)"
+                    }
+                },
+                "required": ["container"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "docker_status",
+            "description": "Check health/status of a specific container. Use when user asks 'is whisper running', 'check ollama status', 'is the vision service healthy'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "container": {
+                        "type": "string",
+                        "description": "Container name to check"
+                    }
+                },
+                "required": ["container"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "docker_logs",
+            "description": "Get logs from a container. Use when user asks 'show whisper logs', 'what errors in piper', 'check the logs for ollama'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "container": {
+                        "type": "string",
+                        "description": "Container name"
+                    },
+                    "lines": {
+                        "type": "integer",
+                        "description": "Number of log lines to show (default: 20)"
+                    }
+                },
+                "required": ["container"]
+            }
+        }
+    },
+    # =========================================
+    # Home Assistant Smart Home (MCP)
+    # =========================================
+    {
+        "type": "function",
+        "function": {
+            "name": "ha_turn_on",
+            "description": "Turn on a smart home device (light, switch, fan, etc). Use when user says 'turn on the lights', 'switch on the fan', 'turn on kitchen light'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "device": {
+                        "type": "string",
+                        "description": "Device name (e.g., 'living room lights', 'kitchen', 'bedroom fan')"
+                    },
+                    "brightness": {
+                        "type": "integer",
+                        "description": "Brightness percentage 0-100 (optional, for lights)"
+                    }
+                },
+                "required": ["device"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ha_turn_off",
+            "description": "Turn off a smart home device. Use when user says 'turn off the lights', 'switch off', 'lights off'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "device": {
+                        "type": "string",
+                        "description": "Device name to turn off"
+                    }
+                },
+                "required": ["device"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ha_set_temperature",
+            "description": "Set thermostat temperature. Use when user says 'set temperature to 72', 'make it warmer', 'turn up the heat'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "temperature": {
+                        "type": "number",
+                        "description": "Target temperature in degrees"
+                    },
+                    "device": {
+                        "type": "string",
+                        "description": "Thermostat name (optional if only one)"
+                    }
+                },
+                "required": ["temperature"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ha_get_state",
+            "description": "Check the state of a device or sensor. Use when user asks 'is the light on', 'what's the temperature', 'is the door locked'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "device": {
+                        "type": "string",
+                        "description": "Device or sensor name to check"
+                    }
+                },
+                "required": ["device"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "ha_list_devices",
+            "description": "List available smart home devices. Use when user asks 'what devices do I have', 'show my lights', 'list smart home devices'.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "type": {
+                        "type": "string",
+                        "enum": ["light", "switch", "climate", "lock", "sensor", "all"],
+                        "description": "Type of devices to list"
+                    }
+                },
+                "required": []
+            }
+        }
+    },
     {
         "type": "function",
         "function": {
@@ -370,6 +542,44 @@ class CommandRouter:
         elif tool_name == "clear_notes":
             print(f"[CommandRouter] clear_notes tool called")
             return {"action": "clear_notes"}
+        
+        # Docker MCP tools
+        elif tool_name == "docker_list":
+            print(f"[CommandRouter] docker_list tool called")
+            return {"action": "docker_list", "all": args.get("all", True)}
+        
+        elif tool_name == "docker_restart":
+            print(f"[CommandRouter] docker_restart tool called: {args.get('container')}")
+            return {"action": "docker_restart", "container": args.get("container", "")}
+        
+        elif tool_name == "docker_status":
+            print(f"[CommandRouter] docker_status tool called: {args.get('container')}")
+            return {"action": "docker_status", "container": args.get("container", "")}
+        
+        elif tool_name == "docker_logs":
+            print(f"[CommandRouter] docker_logs tool called: {args.get('container')}")
+            return {"action": "docker_logs", "container": args.get("container", ""), "lines": args.get("lines", 20)}
+        
+        # Home Assistant MCP tools
+        elif tool_name == "ha_turn_on":
+            print(f"[CommandRouter] ha_turn_on tool called: {args.get('device')}")
+            return {"action": "ha_turn_on", "device": args.get("device", ""), "brightness": args.get("brightness")}
+        
+        elif tool_name == "ha_turn_off":
+            print(f"[CommandRouter] ha_turn_off tool called: {args.get('device')}")
+            return {"action": "ha_turn_off", "device": args.get("device", "")}
+        
+        elif tool_name == "ha_set_temperature":
+            print(f"[CommandRouter] ha_set_temperature tool called: {args.get('temperature')}")
+            return {"action": "ha_set_temperature", "temperature": args.get("temperature"), "device": args.get("device")}
+        
+        elif tool_name == "ha_get_state":
+            print(f"[CommandRouter] ha_get_state tool called: {args.get('device')}")
+            return {"action": "ha_get_state", "device": args.get("device", "")}
+        
+        elif tool_name == "ha_list_devices":
+            print(f"[CommandRouter] ha_list_devices tool called")
+            return {"action": "ha_list_devices", "type": args.get("type", "all")}
             
         elif tool_name == "no_tool_needed":
             # Explicitly no tool - pass to main LLM
@@ -415,6 +625,35 @@ class CommandRouter:
         
         elif tool_name == "clear_notes":
             return "Done! I've cleared all your notes."
+        
+        # Docker MCP
+        elif tool_name == "docker_list":
+            return "Let me check the containers..."
+        
+        elif tool_name == "docker_restart":
+            return f"Restarting {args.get('container', 'the container')}..."
+        
+        elif tool_name == "docker_status":
+            return f"Checking {args.get('container', 'container')} status..."
+        
+        elif tool_name == "docker_logs":
+            return f"Getting logs for {args.get('container', 'the container')}..."
+        
+        # Home Assistant MCP
+        elif tool_name == "ha_turn_on":
+            return f"Turning on {args.get('device', 'the device')}..."
+        
+        elif tool_name == "ha_turn_off":
+            return f"Turning off {args.get('device', 'the device')}..."
+        
+        elif tool_name == "ha_set_temperature":
+            return f"Setting temperature to {args.get('temperature', '')} degrees..."
+        
+        elif tool_name == "ha_get_state":
+            return f"Checking {args.get('device', 'device')} state..."
+        
+        elif tool_name == "ha_list_devices":
+            return "Let me list your smart home devices..."
             
         return "Got it."
 

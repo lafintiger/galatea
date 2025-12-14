@@ -31,8 +31,11 @@ from ..services.embedding import embedding_service
 from ..services.background_worker import background_worker
 from ..services.user_profile import user_profile_service
 from ..services.vision_live import vision_live_service
+from ..services.vision import vision_service
 from ..services.domain_router import domain_router, Domain
 from ..services.command_router import command_router
+from ..services.docker_service import docker_service
+from ..services.homeassistant_service import ha_service
 from ..models.schemas import UserSettings
 
 logger = get_logger(__name__)
@@ -232,6 +235,10 @@ async def handle_voice_input(
                     await speak_response(websocket, state, clarify_msg, user_settings)
                     await websocket.send_json({"type": "status", "state": "idle"})
                     return
+                # MCP Commands (Docker, Home Assistant)
+                elif action.startswith("docker_") or action.startswith("ha_"):
+                    await handle_mcp_command(websocket, routed_cmd, user_settings, state)
+                    return
         except Exception as router_error:
             logger.warning(f"Command router error (falling back to regex): {router_error}")
         
@@ -307,6 +314,10 @@ async def handle_text_input(
                 await websocket.send_json({"type": "status", "state": "speaking"})
                 await speak_response(websocket, state, clarify_msg, user_settings)
                 await websocket.send_json({"type": "status", "state": "idle"})
+                return
+            # MCP Commands (Docker, Home Assistant)
+            elif action.startswith("docker_") or action.startswith("ha_"):
+                await handle_mcp_command(websocket, routed_cmd, user_settings, state)
                 return
     except Exception as router_error:
         logger.warning(f"Text routing error (falling back): {router_error}")
@@ -508,6 +519,28 @@ async def handle_vision_command(
                 "message": response_text
             })
             logger.info("Gala's eyes opened via voice command")
+            
+            # Capture startup context with scene analysis
+            async def scene_analyzer(image_b64: str) -> str:
+                """Analyze the scene using vision model."""
+                try:
+                    result = await vision_service.analyze_image(
+                        image_base64=image_b64,
+                        prompt="Briefly describe what you see in this image. Focus on the person, their setting, and any notable details. Keep it concise (1-2 sentences).",
+                        model_type="general"
+                    )
+                    if result.get("success"):
+                        return result.get("description", "")
+                except Exception as e:
+                    logger.warning(f"Scene analysis failed: {e}")
+                return ""
+            
+            try:
+                startup_context = await vision_live_service.capture_startup_context(scene_analyzer=scene_analyzer)
+                if startup_context:
+                    logger.info(f"Startup context captured: identity={startup_context.identity}, emotion={startup_context.emotion}, scene={startup_context.scene_description[:50] if startup_context.scene_description else 'N/A'}...")
+            except Exception as e:
+                logger.warning(f"Failed to capture startup context: {e}")
         elif command == "close":
             await vision_live_service.stop()
             user_settings.vision_enabled = False
@@ -543,6 +576,223 @@ async def handle_vision_command(
     except Exception as e:
         error_msg = f"Couldn't {'open' if command == 'open' else 'close'} my eyes: {str(e)}"
         await websocket.send_json({"type": "error", "message": error_msg})
+
+
+async def handle_mcp_command(
+    websocket: WebSocket,
+    command: dict,
+    user_settings: UserSettings,
+    state: ConversationState
+):
+    """Handle MCP commands (Docker, Home Assistant, etc.)."""
+    action = command.get("action", "")
+    
+    try:
+        await websocket.send_json({"type": "status", "state": "processing"})
+        
+        result_text = ""
+        
+        # =========================================
+        # Docker Commands
+        # =========================================
+        if action == "docker_list":
+            if not docker_service.is_available:
+                result_text = "I can't connect to Docker right now. Make sure Docker is running."
+            else:
+                containers = await docker_service.list_containers(all_containers=command.get("all", True))
+                if not containers:
+                    result_text = "No Docker containers found."
+                else:
+                    running = [c for c in containers if c.status == 'running']
+                    stopped = [c for c in containers if c.status != 'running']
+                    
+                    lines = []
+                    if running:
+                        lines.append(f"Running ({len(running)}): " + ", ".join(c.name for c in running))
+                    if stopped:
+                        lines.append(f"Stopped ({len(stopped)}): " + ", ".join(c.name for c in stopped))
+                    result_text = " ".join(lines)
+        
+        elif action == "docker_restart":
+            container_name = command.get("container", "")
+            if not docker_service.is_available:
+                result_text = "I can't connect to Docker right now."
+            else:
+                # Try to find container by partial name
+                full_name = docker_service.find_container_by_partial_name(container_name)
+                if not full_name:
+                    result_text = f"I couldn't find a container named {container_name}."
+                else:
+                    success, msg = await docker_service.restart_container(full_name)
+                    result_text = msg
+        
+        elif action == "docker_status":
+            container_name = command.get("container", "")
+            if not docker_service.is_available:
+                result_text = "I can't connect to Docker right now."
+            else:
+                full_name = docker_service.find_container_by_partial_name(container_name)
+                if not full_name:
+                    result_text = f"I couldn't find a container named {container_name}."
+                else:
+                    health = await docker_service.get_container_health(full_name)
+                    if 'error' in health:
+                        result_text = health['error']
+                    else:
+                        status = "running" if health['healthy'] else "stopped"
+                        result_text = f"{health['name']} is {status}. CPU: {health['cpu_percent']}%, Memory: {health['memory_mb']:.0f} MB."
+        
+        elif action == "docker_logs":
+            container_name = command.get("container", "")
+            lines = command.get("lines", 20)
+            if not docker_service.is_available:
+                result_text = "I can't connect to Docker right now."
+            else:
+                full_name = docker_service.find_container_by_partial_name(container_name)
+                if not full_name:
+                    result_text = f"I couldn't find a container named {container_name}."
+                else:
+                    success, logs = await docker_service.get_logs(full_name, tail=lines)
+                    if success:
+                        # Summarize logs rather than reading them all
+                        log_lines = logs.strip().split('\n')
+                        if len(log_lines) > 5:
+                            result_text = f"Here are the last {len(log_lines)} log lines from {full_name}. The most recent entry says: {log_lines[-1][:100]}"
+                        else:
+                            result_text = f"Logs from {full_name}: {logs[:200]}"
+                    else:
+                        result_text = logs
+        
+        # =========================================
+        # Home Assistant Commands
+        # =========================================
+        elif action == "ha_turn_on":
+            device = command.get("device", "")
+            brightness = command.get("brightness")
+            
+            if not ha_service.is_configured:
+                result_text = "Home Assistant is not configured. Set HA_URL and HA_TOKEN in your environment."
+            else:
+                # Find the entity
+                lights = await ha_service.get_lights()
+                entity = ha_service.find_entity_by_name(lights, device)
+                
+                if not entity:
+                    # Try switches too
+                    switches = await ha_service.get_switches()
+                    entity = ha_service.find_entity_by_name(switches, device)
+                
+                if not entity:
+                    result_text = f"I couldn't find a device called {device}."
+                else:
+                    if brightness:
+                        success, msg = await ha_service.set_brightness(entity.entity_id, brightness)
+                    else:
+                        success, msg = await ha_service.turn_on(entity.entity_id)
+                    result_text = f"Turned on {entity.friendly_name}." if success else msg
+        
+        elif action == "ha_turn_off":
+            device = command.get("device", "")
+            
+            if not ha_service.is_configured:
+                result_text = "Home Assistant is not configured."
+            else:
+                lights = await ha_service.get_lights()
+                entity = ha_service.find_entity_by_name(lights, device)
+                
+                if not entity:
+                    switches = await ha_service.get_switches()
+                    entity = ha_service.find_entity_by_name(switches, device)
+                
+                if not entity:
+                    result_text = f"I couldn't find a device called {device}."
+                else:
+                    success, msg = await ha_service.turn_off(entity.entity_id)
+                    result_text = f"Turned off {entity.friendly_name}." if success else msg
+        
+        elif action == "ha_set_temperature":
+            temperature = command.get("temperature")
+            device = command.get("device")
+            
+            if not ha_service.is_configured:
+                result_text = "Home Assistant is not configured."
+            else:
+                climate_devices = await ha_service.get_climate()
+                if not climate_devices:
+                    result_text = "I couldn't find any thermostats."
+                else:
+                    # Use first thermostat if device not specified
+                    if device:
+                        entity = ha_service.find_entity_by_name(climate_devices, device)
+                    else:
+                        entity = climate_devices[0]
+                    
+                    if not entity:
+                        result_text = f"I couldn't find a thermostat called {device}."
+                    else:
+                        success, msg = await ha_service.set_temperature(entity.entity_id, temperature)
+                        result_text = f"Set {entity.friendly_name} to {temperature} degrees." if success else msg
+        
+        elif action == "ha_get_state":
+            device = command.get("device", "")
+            
+            if not ha_service.is_configured:
+                result_text = "Home Assistant is not configured."
+            else:
+                states = await ha_service.get_states()
+                entity = ha_service.find_entity_by_name(states, device)
+                
+                if not entity:
+                    result_text = f"I couldn't find a device called {device}."
+                else:
+                    result_text = f"{entity.friendly_name} is {entity.state}."
+        
+        elif action == "ha_list_devices":
+            device_type = command.get("type", "all")
+            
+            if not ha_service.is_configured:
+                result_text = "Home Assistant is not configured."
+            else:
+                if device_type == "light":
+                    devices = await ha_service.get_lights()
+                elif device_type == "switch":
+                    devices = await ha_service.get_switches()
+                elif device_type == "climate":
+                    devices = await ha_service.get_climate()
+                elif device_type == "lock":
+                    devices = await ha_service.get_locks()
+                else:
+                    # Get a mix of common device types
+                    devices = []
+                    devices.extend(await ha_service.get_lights())
+                    devices.extend(await ha_service.get_switches())
+                    devices.extend(await ha_service.get_climate())
+                
+                if not devices:
+                    result_text = f"No {device_type} devices found."
+                else:
+                    names = [d.friendly_name for d in devices[:10]]  # Limit to 10
+                    result_text = f"Found {len(devices)} devices: " + ", ".join(names)
+                    if len(devices) > 10:
+                        result_text += f" and {len(devices) - 10} more."
+        
+        else:
+            result_text = "I don't know how to handle that command yet."
+        
+        # Send result and speak it
+        state.messages.append({"role": "user", "content": f"[MCP Command: {action}]"})
+        state.messages.append({"role": "assistant", "content": result_text})
+        
+        await websocket.send_json({"type": "llm_complete", "text": result_text})
+        await websocket.send_json({"type": "status", "state": "speaking"})
+        await speak_response(websocket, state, result_text, user_settings)
+        await websocket.send_json({"type": "status", "state": "idle"})
+        
+    except Exception as e:
+        logger.error(f"MCP command error: {e}", exc_info=True)
+        error_msg = f"Sorry, I had trouble with that: {str(e)}"
+        await websocket.send_json({"type": "error", "message": error_msg})
+        await websocket.send_json({"type": "status", "state": "idle"})
 
 
 async def speak_response(

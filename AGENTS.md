@@ -44,6 +44,8 @@ backend/app/
 
 - **Clear Todos**: "Clear my todos", "Delete all my todos", "Wipe my todo list"
 - **Clear Notes**: "Clear my notes", "Delete all notes", "Wipe my notes"
+- **MCP Integration - Docker**: Voice control of Docker containers ("Restart whisper", "What containers are running?")
+- **MCP Integration - Home Assistant**: Smart home control (lights, thermostat, locks) - requires HA_URL and HA_TOKEN
 
 ### Code Review Document
 
@@ -888,6 +890,114 @@ Gala has a built-in workspace for notes, todos, and data tracking.
 - `backend/app/core/intent.py` - Regex-based command detection (`detect_workspace_command`)
 - `backend/app/services/command_router.py` - LLM-based command routing (Ministral)
 - `backend/app/routers/websocket.py` - WebSocket handlers for workspace commands
+
+---
+
+### 16. MCP Integration (Docker & Home Assistant)
+
+Gala can control Docker containers and smart home devices via voice commands using MCP-style tool calling.
+
+**Architecture:**
+```
+User: "Restart the whisper container"
+       ↓
+ ┌─────────────────────┐
+ │ Command Router      │ → Detects docker_restart tool
+ │ (Ministral LLM)     │
+ └──────────┬──────────┘
+            ↓
+ ┌─────────────────────┐
+ │ Docker Service      │ → docker.containers.get().restart()
+ │ (docker-py SDK)     │
+ └──────────┬──────────┘
+            ↓
+ Gala: "Restarted container galatea-whisper"
+```
+
+#### Docker Management
+
+**Capabilities:**
+| Command | Action |
+|---------|--------|
+| `docker_list` | List all containers with status |
+| `docker_restart` | Restart a container by name |
+| `docker_status` | Check container health (CPU, memory) |
+| `docker_logs` | Get recent log lines |
+
+**Voice Examples:**
+- "What containers are running?"
+- "Is whisper running?"
+- "Restart the piper container"
+- "Show me logs for kokoro"
+
+**Container Name Matching:**
+The service uses fuzzy matching - say "whisper" and it finds "galatea-whisper".
+
+**Files:**
+- `backend/app/services/docker_service.py` - Docker SDK wrapper
+- `backend/app/services/command_router.py` - Tool definitions (docker_* tools)
+- `backend/app/routers/websocket.py` - `handle_mcp_command()` function
+
+#### Home Assistant Integration
+
+**Setup Required:**
+1. Get your Home Assistant URL (e.g., `http://192.168.1.x:8123`)
+2. Create a Long-Lived Access Token in HA:
+   - Go to your profile in HA
+   - Scroll to "Long-Lived Access Tokens"
+   - Click "Create Token"
+3. Add to `.env`:
+   ```
+   HA_URL=http://your-homeassistant:8123
+   HA_TOKEN=your_long_lived_token_here
+   ```
+
+**Capabilities:**
+| Command | Action |
+|---------|--------|
+| `ha_turn_on` | Turn on lights, switches, fans |
+| `ha_turn_off` | Turn off devices |
+| `ha_set_temperature` | Set thermostat |
+| `ha_get_state` | Check device/sensor state |
+| `ha_list_devices` | List available devices |
+
+**Voice Examples:**
+- "Turn on the living room lights"
+- "Set temperature to 72"
+- "Is the front door locked?"
+- "What devices do I have?"
+
+**Files:**
+- `backend/app/services/homeassistant_service.py` - HA API client
+- `backend/app/config.py` - `ha_url`, `ha_token` settings
+
+#### Adding New MCP Tools
+
+To add a new MCP capability:
+
+1. **Add tool definition** in `command_router.py`:
+   ```python
+   {
+       "type": "function",
+       "function": {
+           "name": "my_new_tool",
+           "description": "What this tool does...",
+           "parameters": {...}
+       }
+   }
+   ```
+
+2. **Add command mapping** in `_tool_to_command()`:
+   ```python
+   elif tool_name == "my_new_tool":
+       return {"action": "my_new_tool", ...}
+   ```
+
+3. **Add handler** in `handle_mcp_command()` in `websocket.py`:
+   ```python
+   elif action == "my_new_tool":
+       result_text = await my_service.do_something()
+   ```
 
 ---
 
