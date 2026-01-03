@@ -171,7 +171,70 @@ docker run -d `
 
 Access the Kokoro web UI at: http://localhost:8880/web
 
-> **Note:** You can install both Piper and Kokoro and switch between them in the settings!
+---
+
+#### Option C: Chatterbox TTS (State-of-the-Art + Voice Cloning) 🎭
+
+Best for: Highest quality speech, voice cloning, expressive emotions
+
+Chatterbox is a cutting-edge TTS from Resemble AI with zero-shot voice cloning and paralinguistic tags.
+
+**Features:**
+- 🎭 **Voice Cloning** - Clone any voice from just 10 seconds of audio
+- 😄 **Paralinguistic Tags** - Add `[laugh]`, `[chuckle]`, `[cough]` naturally
+- 🌍 **Multilingual** - 23+ languages supported
+- ⚡ **Turbo Mode** - Optimized for low-latency voice agents
+
+**Requirements:**
+1. **Hugging Face Token** - Get one at https://huggingface.co/settings/tokens
+2. **Accept Model Terms** - Visit https://huggingface.co/ResembleAI/chatterbox and click "Agree"
+3. **NVIDIA GPU** - Recommended for good performance
+
+**Setup:**
+
+```bash
+# Set your Hugging Face token
+export HF_TOKEN=hf_your_token_here
+
+# Or add to .env file:
+# HF_TOKEN=hf_your_token_here
+
+# Start Galatea with Chatterbox
+docker compose --profile chatterbox up --build
+```
+
+**For NVIDIA GPU (recommended):**
+
+Edit `docker-compose.yml` and uncomment the GPU section under the chatterbox service:
+```yaml
+deploy:
+  resources:
+    reservations:
+      devices:
+        - driver: nvidia
+          count: 1
+          capabilities: [gpu]
+```
+
+**Usage:**
+1. Open Settings in Galatea
+2. Click **Clone** button in Voice Engine section
+3. Use "Default" voice or upload audio to clone your own voice
+
+**Voice Cloning (via API):**
+```bash
+# Clone a voice from audio file
+curl -X POST http://localhost:8881/v1/audio/clone \
+  -F "name=MyVoice" \
+  -F "audio=@reference.wav"
+
+# Use cloned voice
+curl -X POST http://localhost:8881/v1/audio/speech \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Hello world!", "voice": "your_voice_id"}'
+```
+
+> **Note:** You can install all three TTS engines (Piper, Kokoro, Chatterbox) and switch between them in settings!
 
 #### Verify Containers are Running
 

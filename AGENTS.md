@@ -62,6 +62,7 @@ backend/app/
 - **Clear Notes**: "Clear my notes", "Delete all notes", "Wipe my notes"
 - **MCP Integration - Docker**: Voice control of Docker containers ("Restart whisper", "What containers are running?")
 - **MCP Integration - Home Assistant**: Smart home control (lights, thermostat, locks) - requires HA_URL and HA_TOKEN
+- **Chatterbox TTS**: State-of-the-art TTS with voice cloning (requires HF_TOKEN, NVIDIA GPU recommended)
 
 ### January 2026 Updates (Mac Docker Deployment)
 
@@ -273,7 +274,7 @@ raise TTSError(
 ### Current Status: Phase 5 ✅
 - Voice input (STT) via Faster-Whisper
 - LLM chat via Ollama
-- Voice output (TTS) via **Piper** (fast) or **Kokoro** (HD quality)
+- Voice output (TTS) via **Piper** (fast), **Kokoro** (HD), or **Chatterbox** (SoTA + cloning)
 - Sentence-level streaming for low latency
 - Push-to-talk and Open Mic (VAD) modes
 - Settings persistence
@@ -372,7 +373,10 @@ docker run -d --name searxng \
 
 **TTS Options:**
 - **Piper**: Fast, lightweight, good for CPU. Wyoming protocol.
-- **Kokoro**: Higher quality, more natural. OpenAI-compatible API. User can switch in Settings.
+- **Kokoro**: Higher quality, more natural. OpenAI-compatible API.
+- **Chatterbox**: State-of-the-art with voice cloning & paralinguistic tags. Requires HF_TOKEN. GPU recommended.
+
+User can switch between TTS providers in Settings.
 
 **Web Search Options:**
 - **SearXNG**: Privacy-focused meta-search. Fast, aggregates from multiple engines.
