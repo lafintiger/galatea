@@ -1,7 +1,9 @@
 # Chatterbox TTS Server
 # GPU-accelerated TTS with voice cloning support
 
-FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+# Use Python base for cross-platform support (ARM64 + AMD64)
+# For NVIDIA GPU: use pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
+FROM python:3.11-slim
 
 WORKDIR /app
 
@@ -12,7 +14,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
+# Note: PyTorch will auto-detect CUDA if available
 RUN pip install --no-cache-dir \
+    torch \
+    torchaudio \
     fastapi \
     uvicorn[standard] \
     python-multipart \
