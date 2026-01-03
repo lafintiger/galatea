@@ -12,7 +12,7 @@ This module contains all REST endpoints (non-WebSocket) for:
 - Face recognition
 - Domain routing
 """
-from fastapi import APIRouter, Body
+from fastapi import APIRouter, Body, UploadFile, File, Form
 from fastapi.responses import JSONResponse, Response
 
 from ..core import get_logger
@@ -30,6 +30,7 @@ from ..services.user_profile import user_profile_service
 from ..services.vision import vision_service
 from ..services.vision_live import vision_live_service
 from ..services.domain_router import domain_router, Domain
+from ..services.chatterbox import chatterbox_service
 from ..models.schemas import UserSettings
 
 logger = get_logger(__name__)
@@ -808,4 +809,78 @@ async def configure_routing(
             status_code=400,
             content={"success": False, "error": f"Unknown domain: {domain}"}
         )
+
+
+# ============== Chatterbox Voice Cloning ==============
+
+@router.get("/chatterbox/voices")
+async def list_chatterbox_voices():
+    """List all Chatterbox voices (built-in + cloned)"""
+    try:
+        voices = await chatterbox_service.list_voices()
+        return {"voices": voices}
+    except Exception as e:
+        logger.error(f"Failed to list Chatterbox voices: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"error": "Chatterbox service unavailable"}
+        )
+
+
+@router.post("/chatterbox/clone")
+async def clone_voice(
+    name: str = Form(...),
+    audio: UploadFile = File(...)
+):
+    """Clone a voice from uploaded audio file"""
+    try:
+        # Read audio file
+        audio_bytes = await audio.read()
+        
+        # Clone the voice
+        result = await chatterbox_service.clone_voice(
+            name=name,
+            audio_bytes=audio_bytes,
+            filename=audio.filename or "reference.wav"
+        )
+        
+        return result
+    except Exception as e:
+        logger.error(f"Voice cloning failed: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"detail": str(e)}
+        )
+
+
+@router.delete("/chatterbox/voices/{voice_id}")
+async def delete_chatterbox_voice(voice_id: str):
+    """Delete a cloned voice"""
+    try:
+        success = await chatterbox_service.delete_voice(voice_id)
+        if success:
+            return {"success": True, "message": f"Voice {voice_id} deleted"}
+        else:
+            return JSONResponse(
+                status_code=404,
+                content={"error": f"Voice {voice_id} not found"}
+            )
+    except Exception as e:
+        logger.error(f"Failed to delete voice: {e}")
+        return JSONResponse(
+            status_code=500,
+            content={"error": str(e)}
+        )
+
+
+@router.get("/chatterbox/health")
+async def chatterbox_health():
+    """Check if Chatterbox service is available"""
+    try:
+        info = await chatterbox_service.get_info()
+        if info:
+            return {"available": True, **info}
+        return {"available": False}
+    except Exception as e:
+        return {"available": False, "error": str(e)}
 

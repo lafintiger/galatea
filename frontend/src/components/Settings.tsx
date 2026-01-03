@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useSettingsStore } from '../stores/settingsStore'
-import { X, Volume2, Bot, Sparkles, Play, Loader2, Square, AlertCircle, Mic, Zap, Crown } from 'lucide-react'
+import { X, Volume2, Bot, Sparkles, Play, Loader2, Square, AlertCircle, Mic, Zap, Crown, Upload, Trash2, Plus } from 'lucide-react'
 
 interface SettingsProps {
   websocket: {
@@ -17,6 +17,91 @@ export function Settings({ websocket, onClose }: SettingsProps) {
   const [voiceTestError, setVoiceTestError] = useState<string | null>(null)
   const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null)
   const [abortController, setAbortController] = useState<AbortController | null>(null)
+  
+  // Voice cloning state
+  const [clonedVoices, setClonedVoices] = useState<Array<{id: string, name: string}>>([])
+  const [isCloning, setIsCloning] = useState(false)
+  const [cloneError, setCloneError] = useState<string | null>(null)
+  const [newVoiceName, setNewVoiceName] = useState('')
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Fetch cloned voices when chatterbox is selected
+  useEffect(() => {
+    const fetchClonedVoices = async () => {
+      try {
+        const response = await fetch('/api/chatterbox/voices')
+        if (response.ok) {
+          const data = await response.json()
+          setClonedVoices(data.voices?.filter((v: any) => v.is_cloned) || [])
+        }
+      } catch (e) {
+        console.log('Could not fetch cloned voices')
+      }
+    }
+    
+    if (settings.tts_provider === 'chatterbox') {
+      fetchClonedVoices()
+    }
+  }, [settings.tts_provider])
+  
+  const handleCloneVoice = async () => {
+    if (!selectedFile || !newVoiceName.trim()) return
+    
+    setIsCloning(true)
+    setCloneError(null)
+    
+    try {
+      const formData = new FormData()
+      formData.append('name', newVoiceName.trim())
+      formData.append('audio', selectedFile)
+      
+      const response = await fetch('/api/chatterbox/clone', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Clone failed')
+      }
+      
+      const result = await response.json()
+      
+      // Add to cloned voices list
+      setClonedVoices(prev => [...prev, { id: result.voice_id, name: result.name }])
+      
+      // Select the new voice
+      handleSettingChange('selected_voice', result.voice_id)
+      
+      // Clear form
+      setNewVoiceName('')
+      setSelectedFile(null)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      
+    } catch (e: any) {
+      setCloneError(e.message || 'Voice cloning failed')
+    } finally {
+      setIsCloning(false)
+    }
+  }
+  
+  const handleDeleteVoice = async (voiceId: string) => {
+    try {
+      const response = await fetch(`/api/chatterbox/voices/${voiceId}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        setClonedVoices(prev => prev.filter(v => v.id !== voiceId))
+        if (settings.selected_voice === voiceId) {
+          handleSettingChange('selected_voice', 'default')
+        }
+      }
+    } catch (e) {
+      console.error('Failed to delete voice')
+    }
+  }
 
   const handleSettingChange = <K extends keyof typeof settings>(
     key: K,
@@ -544,20 +629,128 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 : 'Click to preview any voice:'}
             </p>
             {settings.tts_provider === 'chatterbox' ? (
-              <button
-                onClick={() => testVoice('default')}
-                disabled={isTestingVoice}
-                className="w-full flex items-center gap-2 p-2 rounded text-sm hover:bg-cyber-accent/10 
-                          text-left transition-colors text-amber-400 border border-amber-500/30"
-              >
-                {testingVoiceId === 'default' ? (
-                  <Loader2 className="w-3 h-3 animate-spin" />
-                ) : (
-                  <Play className="w-3 h-3" />
-                )}
-                <span>Test Default Voice</span>
-                <Sparkles className="w-3 h-3 ml-auto" />
-              </button>
+              <div className="space-y-3">
+                {/* Default Voice */}
+                <button
+                  onClick={() => {
+                    handleSettingChange('selected_voice', 'default')
+                    testVoice('default')
+                  }}
+                  disabled={isTestingVoice}
+                  className={`w-full flex items-center gap-2 p-2 rounded text-sm hover:bg-amber-500/10 
+                            text-left transition-colors border
+                            ${settings.selected_voice === 'default' 
+                              ? 'text-amber-400 border-amber-500 bg-amber-500/10' 
+                              : 'text-slate-400 border-amber-500/30'}`}
+                >
+                  {testingVoiceId === 'default' ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Play className="w-3 h-3" />
+                  )}
+                  <span>Default Voice</span>
+                  <Sparkles className="w-3 h-3 ml-auto" />
+                </button>
+                
+                {/* Cloned Voices */}
+                {clonedVoices.map((voice) => (
+                  <div key={voice.id} className="flex items-center gap-2">
+                    <button
+                      onClick={() => {
+                        handleSettingChange('selected_voice', voice.id)
+                        testVoice(voice.id)
+                      }}
+                      disabled={isTestingVoice}
+                      className={`flex-1 flex items-center gap-2 p-2 rounded text-sm hover:bg-amber-500/10 
+                                text-left transition-colors border
+                                ${settings.selected_voice === voice.id 
+                                  ? 'text-amber-400 border-amber-500 bg-amber-500/10' 
+                                  : 'text-slate-400 border-amber-500/30'}`}
+                    >
+                      {testingVoiceId === voice.id ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Play className="w-3 h-3" />
+                      )}
+                      <span>{voice.name}</span>
+                      <Mic className="w-3 h-3 ml-auto text-amber-500/50" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteVoice(voice.id)}
+                      className="p-2 rounded text-red-400/50 hover:text-red-400 hover:bg-red-500/10 
+                                border border-transparent hover:border-red-500/30 transition-all"
+                      title="Delete voice"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
+                
+                {/* Clone New Voice */}
+                <div className="pt-3 border-t border-amber-500/20">
+                  <p className="text-xs text-amber-400/70 mb-2 flex items-center gap-1">
+                    <Plus className="w-3 h-3" />
+                    Clone a New Voice
+                  </p>
+                  
+                  <input
+                    type="text"
+                    placeholder="Voice name (e.g., 'My Voice')"
+                    value={newVoiceName}
+                    onChange={(e) => setNewVoiceName(e.target.value)}
+                    className="w-full px-3 py-2 rounded bg-cyber-dark border border-amber-500/30
+                             text-slate-200 text-sm focus:outline-none focus:border-amber-500
+                             placeholder:text-slate-500 mb-2"
+                  />
+                  
+                  <div className="flex gap-2">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      className="hidden"
+                      id="voice-upload"
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-sm
+                               bg-cyber-dark border border-amber-500/30 text-slate-400
+                               hover:border-amber-500 hover:text-amber-400 transition-all"
+                    >
+                      <Upload className="w-4 h-4" />
+                      {selectedFile ? selectedFile.name.slice(0, 20) + '...' : 'Upload Audio'}
+                    </button>
+                    
+                    <button
+                      onClick={handleCloneVoice}
+                      disabled={isCloning || !selectedFile || !newVoiceName.trim()}
+                      className="px-4 py-2 rounded text-sm bg-amber-500/20 border border-amber-500
+                               text-amber-400 hover:bg-amber-500/30 transition-all
+                               disabled:opacity-50 disabled:cursor-not-allowed
+                               flex items-center gap-2"
+                    >
+                      {isCloning ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="w-4 h-4" />
+                      )}
+                      Clone
+                    </button>
+                  </div>
+                  
+                  {cloneError && (
+                    <p className="text-xs text-red-400 mt-2 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      {cloneError}
+                    </p>
+                  )}
+                  
+                  <p className="text-xs text-slate-500 mt-2">
+                    Upload 10+ seconds of clear speech for best results
+                  </p>
+                </div>
+              </div>
             ) : (settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).map((voice) => (
               <button
                 key={voice.id}
