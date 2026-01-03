@@ -47,6 +47,30 @@ backend/app/
 - **MCP Integration - Docker**: Voice control of Docker containers ("Restart whisper", "What containers are running?")
 - **MCP Integration - Home Assistant**: Smart home control (lights, thermostat, locks) - requires HA_URL and HA_TOKEN
 
+### January 2026 Updates (Mac Docker Deployment)
+
+**Search System Improvements:**
+- Updated `web_search.py` to support new Perplexica API format (`providerId`/`key`)
+- SearXNG is now primary search provider (faster, more reliable)
+- Search queries cleaned up - removes greetings ("Hey Gala"), filler words, assistant names
+- Fixed duplicate search bug when LLM response already contains search results
+- Location-aware searches: "weather" → "weather in Redlands, California"
+
+**User Location Awareness:**
+- Added `user_location` field to `UserSettings` schema
+- Location passed to system prompt for context
+- Auto-appends location to weather, restaurant, local queries
+
+**UI Fixes:**
+- Stop button now visible during processing/thinking states (not just speaking)
+- TTS provider button highlighting fixed with atomic `updateSettings()` in Zustand store
+- Added pulse animation to stop button for visibility
+
+**Docker/Config:**
+- Perplexica port updated from 3001 to 3000 (new single-container version)
+- Added `TZ` environment variable for timezone awareness
+- SearXNG configured via `host.docker.internal` for Mac Docker
+
 ### Code Review Document
 
 See `codereview.md` for comprehensive assessment.
