@@ -22,7 +22,7 @@ class UserSettings(BaseModel):
     assistant_name: str = "Galatea"
     assistant_nickname: str = "Gala"
     selected_model: str = "ministral-3:latest"
-    selected_voice: str = "en_US-lessac-high"  # High quality for more natural sound
+    selected_voice: str = "af_heart"  # Kokoro default voice
     response_style: Literal["concise", "conversational"] = "conversational"
     activation_mode: Literal["push-to-talk", "vad", "wake-word"] = "push-to-talk"
     wake_word: Optional[str] = None
@@ -30,8 +30,11 @@ class UserSettings(BaseModel):
     theme: str = "futuristic-dark"
     language: str = "en"
     
+    # User location for weather, local info, etc.
+    user_location: str = ""  # e.g., "Redlands, California"
+    
     # TTS Provider: "piper" (fast, CPU) or "kokoro" (high quality, GPU)
-    tts_provider: Literal["piper", "kokoro"] = "piper"
+    tts_provider: Literal["piper", "kokoro"] = "kokoro"
     
     # Voice tuning for more natural/expressive speech (Piper-specific)
     voice_speed: float = 1.0  # length_scale: 0.5-2.0 (lower=faster, higher=slower)

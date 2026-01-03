@@ -29,6 +29,38 @@ class WebSearchService:
         self.perplexica_url = f"http://{settings.perplexica_host}:{settings.perplexica_port}"
         # Perplexica needs longer timeout as it does AI-powered search
         self.client = httpx.AsyncClient(timeout=120.0)
+        # Cache for Perplexica providers
+        self._providers_cache: dict = {}
+        self._ollama_provider_id: Optional[str] = None
+    
+    async def _get_perplexica_providers(self) -> dict:
+        """Fetch available providers from Perplexica API"""
+        try:
+            response = await self.client.get(
+                f"{self.perplexica_url}/api/providers",
+                timeout=10.0
+            )
+            response.raise_for_status()
+            data = response.json()
+            self._providers_cache = data
+            
+            # Find Ollama provider
+            for provider in data.get("providers", []):
+                if provider.get("name", "").lower() == "ollama":
+                    self._ollama_provider_id = provider.get("id")
+                    print(f"[Search] Found Ollama provider: {self._ollama_provider_id}")
+                    break
+            
+            return data
+        except Exception as e:
+            print(f"[Search] Failed to get Perplexica providers: {e}")
+            return {}
+    
+    async def _get_ollama_provider_id(self) -> Optional[str]:
+        """Get cached Ollama provider ID or fetch it"""
+        if not self._ollama_provider_id:
+            await self._get_perplexica_providers()
+        return self._ollama_provider_id
     
     async def search_searxng(self, query: str, num_results: int = 5) -> list[SearchResult]:
         """Search using SearXNG meta-search engine
@@ -36,6 +68,7 @@ class WebSearchService:
         SearXNG aggregates results from multiple search engines.
         Returns raw results - use Ollama to summarize if needed.
         """
+        print(f"[Search] SearXNG: Searching '{query}' at {self.searxng_url}")
         try:
             response = await self.client.get(
                 f"{self.searxng_url}/search",
@@ -44,10 +77,13 @@ class WebSearchService:
                     "format": "json",
                     "engines": "google,bing,duckduckgo",
                     "language": "en",
-                }
+                },
+                timeout=15.0  # Explicit shorter timeout
             )
             response.raise_for_status()
             data = response.json()
+            
+            print(f"[Search] SearXNG: Got {len(data.get('results', []))} results")
             
             results = []
             for item in data.get("results", [])[:num_results]:
@@ -60,53 +96,91 @@ class WebSearchService:
             
             return results
         except Exception as e:
-            print(f"SearXNG search error: {e}")
+            print(f"[Search] SearXNG error: {e}")
+            import traceback
+            traceback.print_exc()
             return []
     
     async def search_perplexica(
         self, 
         query: str, 
-        focus_mode: str = "webSearch",
+        sources: list[str] = ["web"],
         optimization_mode: str = "speed"
     ) -> dict:
-        """Search using Perplexica AI-powered search
+        """Search using Perplexica AI-powered search (new API format)
         
         Perplexica provides AI-generated summaries with sources.
         
+        API Reference: https://github.com/ItzCrazyKns/Perplexica/blob/master/docs/API/SEARCH.md
+        
         Args:
             query: The search query
-            focus_mode: One of "webSearch", "academicSearch", "writingAssistant", 
-                       "wolframAlphaSearch", "youtubeSearch", "redditSearch"
-            optimization_mode: "speed" or "balanced"
+            sources: List of sources to search ["web", "academic", "discussions"]
+            optimization_mode: "speed", "balanced", or "quality"
             
         Returns:
             Dict with 'answer' (AI summary) and 'sources' (list of sources)
         """
         try:
-            # Perplexica API format per docs: https://github.com/ItzCrazyKns/Perplexica/blob/master/docs/API/SEARCH.md
-            # Must use "providerId" and "key" (not "provider" and "model")
-            provider_id = settings.perplexica_ollama_provider_id
+            # Get Ollama provider ID
+            provider_id = await self._get_ollama_provider_id()
+            
+            if not provider_id:
+                print("[Search] No Ollama provider configured in Perplexica")
+                return {"answer": "", "sources": []}
+            
+            # Use Transformers for embedding (built-in, fast)
+            # Use Ollama for chat (user's local models)
+            embedding_provider_id = None
+            embedding_model_key = "Xenova/all-MiniLM-L6-v2"  # Fast default
+            
+            for provider in self._providers_cache.get("providers", []):
+                if provider.get("name", "").lower() == "transformers":
+                    if provider.get("embeddingModels"):
+                        embedding_provider_id = provider.get("id")
+                        embedding_model_key = provider["embeddingModels"][0]["key"]
+                        break
+            
+            if not embedding_provider_id:
+                print("[Search] No Transformers provider for embeddings")
+                return {"answer": "", "sources": []}
+            
+            # Use a fast small model for search summarization
+            # Try to find qwen3:4b or similar small model
+            chat_model_key = "qwen3:4b"  # Fast model for search
+            for provider in self._providers_cache.get("providers", []):
+                if provider.get("name", "").lower() == "ollama":
+                    models = [m["key"] for m in provider.get("chatModels", [])]
+                    # Prefer small fast models for search
+                    for preferred in ["qwen3:4b", "phi4-mini:latest", "ministral-3:latest"]:
+                        if preferred in models:
+                            chat_model_key = preferred
+                            break
+                    break
+            
+            # New API format per docs
             request_body = {
                 "chatModel": {
                     "providerId": provider_id,
-                    "key": settings.perplexica_chat_model,  # Fast non-thinking model for search
+                    "key": chat_model_key,
                 },
                 "embeddingModel": {
-                    "providerId": provider_id,
-                    "key": settings.perplexica_embedding_model,  # Embedding model for search
+                    "providerId": embedding_provider_id,
+                    "key": embedding_model_key,
                 },
                 "optimizationMode": optimization_mode,
-                "focusMode": focus_mode,
+                "sources": sources,  # New API uses "sources" not "focusMode"
                 "query": query,
-                "history": []  # No conversation history for fresh searches
+                "history": []
             }
             
-            print(f"[Search] Perplexica request: {request_body}")
+            print(f"[Search] Perplexica request: query='{query}', model={chat_model_key}")
             
+            # Use shorter timeout - fall back to SearXNG if Perplexica is slow
             response = await self.client.post(
                 f"{self.perplexica_url}/api/search",
                 json=request_body,
-                timeout=120.0  # Perplexica needs time for AI search + Ollama
+                timeout=45.0  # Shorter timeout for faster fallback
             )
             response.raise_for_status()
             data = response.json()
@@ -114,11 +188,10 @@ class WebSearchService:
             print(f"[Search] Perplexica response keys: {data.keys()}")
             
             # Parse response - Perplexica returns 'message' and 'sources'
-            sources = []
+            sources_list = []
             for src in data.get("sources", []):
-                # Sources can have 'metadata' with title/url or direct fields
                 metadata = src.get("metadata", {})
-                sources.append(SearchResult(
+                sources_list.append(SearchResult(
                     title=metadata.get("title", src.get("title", "")),
                     url=metadata.get("url", src.get("url", "")),
                     snippet=src.get("pageContent", src.get("content", ""))[:300],
@@ -127,8 +200,11 @@ class WebSearchService:
             
             return {
                 "answer": data.get("message", ""),
-                "sources": sources
+                "sources": sources_list
             }
+        except httpx.HTTPStatusError as e:
+            print(f"[Search] Perplexica HTTP error: {e.response.status_code} - {e.response.text[:200]}")
+            return {"answer": "", "sources": []}
         except Exception as e:
             print(f"[Search] Perplexica error: {e}")
             return {"answer": "", "sources": []}
@@ -143,14 +219,41 @@ class WebSearchService:
         
         Args:
             query: Search query
-            provider: Which search provider to use ("auto" prefers Perplexica for quality)
-            num_results: Number of results (for SearXNG fallback)
+            provider: Which search provider to use ("auto" now prefers SearXNG for reliability)
+            num_results: Number of results (for SearXNG)
             
         Returns:
             Dict with 'results' and optionally 'summary'
         """
-        # Try Perplexica first if available (better AI summaries)
-        if provider in ["perplexica", "auto"]:
+        # Use SearXNG first - it's faster and more reliable
+        # Perplexica's bundled SearXNG has CAPTCHA issues
+        print(f"[Search] Starting search for: '{query}' (provider={provider})")
+        if provider in ["searxng", "auto"]:
+            try:
+                print(f"[Search] Checking SearXNG availability at {self.searxng_url}")
+                available = await self.is_searxng_available()
+                print(f"[Search] SearXNG available: {available}")
+                if available:
+                    print(f"[Search] Calling search_searxng...")
+                    results = await self.search_searxng(query, num_results)
+                    print(f"[Search] search_searxng returned {len(results) if results else 0} results")
+                    if results:
+                        return {
+                            "provider": "searxng",
+                            "query": query,
+                            "summary": "",  # LLM will summarize
+                            "results": [r.to_dict() for r in results]
+                        }
+                    print("[Search] SearXNG returned no results")
+                else:
+                    print("[Search] SearXNG not available")
+            except Exception as e:
+                print(f"[Search] SearXNG error: {e}")
+                import traceback
+                traceback.print_exc()
+        
+        # Try Perplexica as fallback (if explicitly requested or SearXNG failed)
+        if provider == "perplexica":
             try:
                 if await self.is_perplexica_available():
                     print(f"[Search] Trying Perplexica for: {query}")
@@ -163,26 +266,9 @@ class WebSearchService:
                             "summary": data.get("answer", ""),
                             "results": data.get("sources", [])
                         }
-                    print("[Search] Perplexica returned no results, trying SearXNG...")
+                    print("[Search] Perplexica returned no results")
             except Exception as e:
-                print(f"[Search] Perplexica error: {e}, trying SearXNG...")
-        
-        # Use SearXNG (reliable fallback)
-        try:
-            if await self.is_searxng_available():
-                print(f"[Search] Using SearXNG for: {query}")
-                results = await self.search_searxng(query, num_results)
-                if results:
-                    print(f"[Search] SearXNG returned {len(results)} results")
-                    return {
-                        "provider": "searxng",
-                        "query": query,
-                        "summary": "",  # LLM will summarize
-                        "results": [r.to_dict() for r in results]
-                    }
-                print("[Search] SearXNG returned no results")
-        except Exception as e:
-            print(f"[Search] SearXNG error: {e}")
+                print(f"[Search] Perplexica error: {e}")
         
         # Both failed
         print("[Search] No search services returned results")
@@ -203,10 +289,10 @@ class WebSearchService:
             return False
     
     async def is_perplexica_available(self) -> bool:
-        """Check if Perplexica is reachable"""
+        """Check if Perplexica is reachable via new API"""
         try:
-            response = await self.client.get(f"{self.perplexica_url}/api", timeout=5.0)
-            return response.status_code in [200, 404]  # 404 means API exists but endpoint doesn't
+            response = await self.client.get(f"{self.perplexica_url}/api/providers", timeout=5.0)
+            return response.status_code == 200
         except:
             return False
     
@@ -215,6 +301,12 @@ class WebSearchService:
         searxng = await self.is_searxng_available()
         perplexica = await self.is_perplexica_available()
         
+        # Get provider info if Perplexica is available
+        perplexica_providers = []
+        if perplexica:
+            providers_data = await self._get_perplexica_providers()
+            perplexica_providers = [p.get("name") for p in providers_data.get("providers", [])]
+        
         return {
             "searxng": {
                 "available": searxng,
@@ -222,7 +314,9 @@ class WebSearchService:
             },
             "perplexica": {
                 "available": perplexica,
-                "url": self.perplexica_url
+                "url": self.perplexica_url,
+                "providers": perplexica_providers,
+                "ollama_configured": self._ollama_provider_id is not None
             }
         }
     
@@ -255,7 +349,6 @@ class WebSearchService:
             for i, result in enumerate(search_data["results"], 1):
                 lines.append(f"SOURCE {i}: {result['title']}")
                 if result.get("snippet"):
-                    # Include more of the snippet for better context
                     lines.append(f"Content: {result['snippet'][:300]}")
                 lines.append(f"URL: {result['url']}")
                 lines.append("")
@@ -269,4 +362,3 @@ class WebSearchService:
 
 # Singleton instance
 web_search = WebSearchService()
-

@@ -210,6 +210,7 @@ class OllamaService:
         nickname: str = "Gala",
         response_style: str = "conversational",
         user_name: str = "User",
+        user_location: str = "",
         current_time: Optional[str] = None,
         time_context: Optional[dict] = None,
         memories: Optional[str] = None,
@@ -223,6 +224,7 @@ class OllamaService:
             nickname: Short name (e.g., "Gala")
             response_style: "conversational" or "concise"
             user_name: Name of the user if known
+            user_location: User's location for weather, local info (e.g., "Redlands, California")
             current_time: Simple time string (legacy, prefer time_context)
             time_context: Rich time context from get_time_context()
             memories: RAG context from past conversations
@@ -306,6 +308,11 @@ You have web search access. If asked about current events, prices, weather, news
 
 When you receive search results (marked with [Web Search:]), summarize the key information naturally and cite sources when relevant.
 """
+        
+        # Add user location if available
+        if user_location:
+            prompt += f"\n\nUSER LOCATION: {user_location}"
+            prompt += "\nUse this for weather, local recommendations, time zone context, and any location-relevant queries."
         
         # Add user profile if available (from onboarding)
         if user_profile:

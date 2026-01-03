@@ -11,7 +11,7 @@ interface SettingsProps {
 }
 
 export function Settings({ websocket, onClose }: SettingsProps) {
-  const { settings, models, piperVoices, kokoroVoices, updateSetting } = useSettingsStore()
+  const { settings, models, piperVoices, kokoroVoices, updateSetting, updateSettings } = useSettingsStore()
   const [isTestingVoice, setIsTestingVoice] = useState(false)
   const [testingVoiceId, setTestingVoiceId] = useState<string | null>(null)
   const [voiceTestError, setVoiceTestError] = useState<string | null>(null)
@@ -24,6 +24,14 @@ export function Settings({ websocket, onClose }: SettingsProps) {
   ) => {
     updateSetting(key, value)
     websocket.updateSettings({ ...settings, [key]: value })
+  }
+
+  const handleBatchSettingChange = (updates: Partial<typeof settings>) => {
+    // Atomic update - update all settings at once to ensure re-render
+    updateSettings(updates)
+    
+    // Send merged settings to backend
+    websocket.updateSettings({ ...settings, ...updates })
   }
 
   const stopVoiceTest = () => {
@@ -43,14 +51,14 @@ export function Settings({ websocket, onClose }: SettingsProps) {
   const testVoice = async (voiceId: string) => {
     // Stop any existing test
     stopVoiceTest()
-    
+
     setIsTestingVoice(true)
     setTestingVoiceId(voiceId)
     setVoiceTestError(null)
-    
+
     const controller = new AbortController()
     setAbortController(controller)
-    
+
     // Set a timeout of 30 seconds
     const timeoutId = setTimeout(() => {
       controller.abort()
@@ -58,16 +66,16 @@ export function Settings({ websocket, onClose }: SettingsProps) {
       setIsTestingVoice(false)
       setTestingVoiceId(null)
     }, 30000)
-    
+
     try {
       console.log('Testing voice:', voiceId, 'with provider:', settings.tts_provider)
       const provider = settings.tts_provider || 'piper'
       const response = await fetch(`/api/voices/test/${encodeURIComponent(voiceId)}?provider=${provider}`, {
         signal: controller.signal
       })
-      
+
       clearTimeout(timeoutId)
-      
+
       if (!response.ok) {
         let errorMsg = 'Voice test failed'
         try {
@@ -78,25 +86,25 @@ export function Settings({ websocket, onClose }: SettingsProps) {
         }
         throw new Error(errorMsg)
       }
-      
+
       const audioBlob = await response.blob()
       console.log('Received audio blob:', audioBlob.size, 'bytes')
-      
+
       if (audioBlob.size < 100) {
         throw new Error('Received empty or invalid audio')
       }
-      
+
       const audioUrl = URL.createObjectURL(audioBlob)
       const audio = new Audio(audioUrl)
       setCurrentAudio(audio)
-      
+
       audio.onended = () => {
         URL.revokeObjectURL(audioUrl)
         setIsTestingVoice(false)
         setTestingVoiceId(null)
         setCurrentAudio(null)
       }
-      
+
       audio.onerror = (e) => {
         console.error('Audio playback error:', e)
         URL.revokeObjectURL(audioUrl)
@@ -105,7 +113,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
         setTestingVoiceId(null)
         setCurrentAudio(null)
       }
-      
+
       await audio.play()
     } catch (error) {
       clearTimeout(timeoutId)
@@ -140,7 +148,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             <Sparkles className="w-4 h-4 text-cyber-pink" />
             Identity
           </h3>
-          
+
           <div className="space-y-3">
             <div>
               <label className="block text-xs text-slate-500 mb-1">Name</label>
@@ -152,7 +160,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                            text-slate-200 text-sm focus:outline-none focus:border-cyber-accent"
               />
             </div>
-            
+
             <div>
               <label className="block text-xs text-slate-500 mb-1">Nickname</label>
               <input
@@ -172,7 +180,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             <Bot className="w-4 h-4 text-cyber-accent" />
             AI Model
           </h3>
-          
+
           <select
             value={settings.selected_model}
             onChange={(e) => handleSettingChange('selected_model', e.target.value)}
@@ -198,15 +206,16 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             <Volume2 className="w-4 h-4 text-cyber-purple" />
             Voice Engine
           </h3>
-          
+
           <div className="flex gap-2 mb-4">
             <button
               onClick={() => {
-                handleSettingChange('tts_provider', 'piper')
+                const updates: any = { tts_provider: 'piper' }
                 // Auto-select a Piper voice if switching
                 if (piperVoices.length > 0) {
-                  handleSettingChange('selected_voice', piperVoices[0].id)
+                  updates.selected_voice = piperVoices[0].id
                 }
+                handleBatchSettingChange(updates)
               }}
               className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
                 ${settings.tts_provider === 'piper'
@@ -219,11 +228,12 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             </button>
             <button
               onClick={() => {
-                handleSettingChange('tts_provider', 'kokoro')
+                const updates: any = { tts_provider: 'kokoro' }
                 // Auto-select a Kokoro voice if switching
                 if (kokoroVoices.length > 0) {
-                  handleSettingChange('selected_voice', kokoroVoices[0].id)
+                  updates.selected_voice = kokoroVoices[0].id
                 }
+                handleBatchSettingChange(updates)
               }}
               className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
                 ${settings.tts_provider === 'kokoro'
@@ -235,9 +245,9 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               Kokoro (HD)
             </button>
           </div>
-          
+
           <p className="text-xs text-slate-500 mb-4">
-            {settings.tts_provider === 'kokoro' 
+            {settings.tts_provider === 'kokoro'
               ? '✨ High-quality natural speech (CPU-based, ~1-2s latency)'
               : '⚡ Fast response times (CPU-based, <500ms latency)'}
           </p>
@@ -248,7 +258,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
           <h3 className="text-sm font-semibold text-slate-300 mb-3">
             Voice Selection
           </h3>
-          
+
           <div className="flex gap-2">
             <select
               value={settings.selected_voice}
@@ -278,7 +288,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* English (UK) */}
                   <optgroup label="🇬🇧 English (UK) - Female">
                     {kokoroVoices
@@ -298,7 +308,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* Japanese */}
                   <optgroup label="🇯🇵 Japanese - Female">
                     {kokoroVoices
@@ -318,7 +328,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* Chinese */}
                   <optgroup label="🇨🇳 Chinese - Female">
                     {kokoroVoices
@@ -338,7 +348,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* French */}
                   <optgroup label="🇫🇷 French">
                     {kokoroVoices
@@ -349,7 +359,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* Spanish */}
                   <optgroup label="🇪🇸 Spanish - Female">
                     {kokoroVoices
@@ -369,7 +379,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* Italian */}
                   <optgroup label="🇮🇹 Italian - Female">
                     {kokoroVoices
@@ -389,7 +399,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* Portuguese */}
                   <optgroup label="🇵🇹 Portuguese - Female">
                     {kokoroVoices
@@ -409,7 +419,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                         </option>
                       ))}
                   </optgroup>
-                  
+
                   {/* Hindi */}
                   <optgroup label="🇮🇳 Hindi - Female">
                     {kokoroVoices
@@ -468,13 +478,13 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 </option>
               )}
             </select>
-            
+
             <button
               onClick={() => isTestingVoice ? stopVoiceTest() : testVoice(settings.selected_voice)}
               className={`px-3 py-2 rounded border transition-all flex items-center gap-1
-                         ${isTestingVoice 
-                           ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30' 
-                           : 'bg-cyber-purple/20 border-cyber-purple/50 text-cyber-purple hover:bg-cyber-purple/30 hover:border-cyber-purple'}`}
+                         ${isTestingVoice
+                  ? 'bg-red-500/20 border-red-500/50 text-red-400 hover:bg-red-500/30'
+                  : 'bg-cyber-purple/20 border-cyber-purple/50 text-cyber-purple hover:bg-cyber-purple/30 hover:border-cyber-purple'}`}
               title={isTestingVoice ? "Stop voice test" : "Test selected voice"}
             >
               {isTestingVoice && testingVoiceId === settings.selected_voice ? (
@@ -486,14 +496,14 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               )}
             </button>
           </div>
-          
+
           {/* Error Display */}
           {voiceTestError && (
             <div className="mt-2 p-2 rounded bg-red-500/10 border border-red-500/30 
                            flex items-start gap-2 text-xs text-red-400">
               <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
               <span>{voiceTestError}</span>
-              <button 
+              <button
                 onClick={() => setVoiceTestError(null)}
                 className="ml-auto text-red-400 hover:text-red-300"
               >
@@ -501,7 +511,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               </button>
             </div>
           )}
-          
+
           {/* Voice Preview List */}
           <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
             <p className="text-xs text-slate-500 mb-2">Click to preview any voice:</p>
@@ -515,9 +525,9 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 disabled={isTestingVoice}
                 className={`w-full px-2 py-1.5 rounded text-left text-xs transition-all
                            flex items-center justify-between gap-2
-                           ${settings.selected_voice === voice.id 
-                             ? 'bg-cyber-purple/20 border border-cyber-purple/50 text-cyber-purple' 
-                             : 'bg-cyber-dark/50 border border-transparent text-slate-400 hover:border-cyber-accent/30'}
+                           ${settings.selected_voice === voice.id
+                    ? 'bg-cyber-purple/20 border border-cyber-purple/50 text-cyber-purple'
+                    : 'bg-cyber-dark/50 border border-transparent text-slate-400 hover:border-cyber-accent/30'}
                            disabled:opacity-50`}
               >
                 <span>{voice.name}</span>
@@ -528,7 +538,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               </button>
             ))}
           </div>
-          
+
           {/* Voice Tuning */}
           <div className="mt-4 pt-4 border-t border-cyber-accent/20">
             <div className="flex items-center justify-between mb-3">
@@ -579,7 +589,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 </button>
               </div>
             </div>
-            
+
             <div className="space-y-3">
               {/* Speed - Available for both */}
               <div>
@@ -603,7 +613,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                   <span>Faster</span>
                 </div>
               </div>
-              
+
               {/* Piper-specific controls */}
               {settings.tts_provider === 'piper' && (
                 <>
@@ -629,7 +639,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                       <span>Animated</span>
                     </div>
                   </div>
-                  
+
                   {/* Natural Timing */}
                   <div>
                     <div className="flex justify-between text-xs mb-1">
@@ -655,9 +665,9 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 </>
               )}
             </div>
-            
+
             <p className="text-xs text-slate-600 mt-2 italic">
-              {settings.tts_provider === 'piper' 
+              {settings.tts_provider === 'piper'
                 ? '💡 "Natural" preset: Speed 1.0, Expression 80%, Timing 60%'
                 : '💡 Kokoro voices are pre-tuned for natural speech'}
             </p>
@@ -667,7 +677,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
         {/* Response Style */}
         <section>
           <h3 className="text-sm font-semibold text-slate-300 mb-3">Response Style</h3>
-          
+
           <div className="flex gap-2">
             <button
               onClick={() => handleSettingChange('response_style', 'concise')}
@@ -698,7 +708,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
             <Mic className="w-4 h-4 text-green-400" />
             Microphone Mode
           </h3>
-          
+
           <div className="flex gap-2">
             <button
               onClick={() => handleSettingChange('activation_mode', 'push-to-talk')}
@@ -721,9 +731,9 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               Open Mic
             </button>
           </div>
-          
+
           <p className="text-xs text-slate-500 mt-2">
-            {settings.activation_mode === 'vad' 
+            {settings.activation_mode === 'vad'
               ? 'Always listening - speak anytime and Gala will respond when you pause'
               : 'Click the mic button to start/stop recording'}
           </p>

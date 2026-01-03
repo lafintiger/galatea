@@ -35,6 +35,8 @@ services:
     ports:
       - "8010:8010"
     environment:
+      # Timezone - match your local timezone
+      - TZ=${TZ:-America/Los_Angeles}
       # Ollama - defaults to Docker, override with OLLAMA_HOST env var
       - OLLAMA_BASE_URL=${OLLAMA_HOST:-http://host.docker.internal:11434}
       - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3:4b}
@@ -44,11 +46,11 @@ services:
       - PIPER_HOST=piper
       - PIPER_PORT=10200
       - KOKORO_BASE_URL=http://kokoro:8880
-      # Search - defaults to Docker, override if using existing
-      - SEARXNG_HOST=${SEARXNG_HOST:-searxng}
-      - SEARXNG_PORT=${SEARXNG_PORT:-8080}
-      - PERPLEXICA_HOST=${PERPLEXICA_HOST:-perplexica-backend}
-      - PERPLEXICA_PORT=${PERPLEXICA_PORT:-3001}
+      # Search - defaults to host machine (for external Perplexica/SearXNG)
+      - SEARXNG_HOST=${SEARXNG_HOST:-host.docker.internal}
+      - SEARXNG_PORT=${SEARXNG_PORT:-4000}
+      - PERPLEXICA_HOST=${PERPLEXICA_HOST:-host.docker.internal}
+      - PERPLEXICA_PORT=${PERPLEXICA_PORT:-3000}
       - TTS_PROVIDER=${TTS_PROVIDER:-kokoro}
       # Vision - Gala's eyes (optional, requires --profile vision)
       - VISION_HOST=${VISION_HOST:-galatea-vision}
@@ -92,16 +94,13 @@ services:
       - galatea-network
 
   piper:
-    image: lscr.io/linuxserver/piper:latest
+    image: rhasspy/wyoming-piper:latest
     container_name: galatea-piper
     ports:
       - "10200:10200"
-    environment:
-      - PUID=1000
-      - PGID=1000
-      - TZ=${TZ:-America/Los_Angeles}
+    command: --voice en_US-lessac-medium
     volumes:
-      - piper-voices:/config
+      - piper-voices:/data
     restart: unless-stopped
     networks:
       - galatea-network

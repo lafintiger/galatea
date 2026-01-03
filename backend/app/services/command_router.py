@@ -419,7 +419,7 @@ When in doubt about whether something is a task, ASK the user: "Would you like m
 class CommandRouter:
     """Routes user commands using Ministral's function calling capability."""
     
-    def __init__(self, model: str = "ministral-3:3b"):
+    def __init__(self, model: str = "qwen3:4b"):
         self.model = model
         self.ollama_base_url = settings.ollama_base_url
         self.enabled = True

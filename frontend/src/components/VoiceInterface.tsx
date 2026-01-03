@@ -383,12 +383,14 @@ export function VoiceInterface({ websocket }: VoiceInterfaceProps) {
           </button>
         )}
 
-        {/* Interrupt Button */}
-        {conversationState === 'speaking' && (
+        {/* Interrupt/Stop Button - Show during speaking, processing, or thinking */}
+        {(conversationState === 'speaking' || conversationState === 'processing' || conversationState === 'thinking') && (
           <button
             onClick={handleInterrupt}
             className="w-16 h-16 rounded-full cyber-btn border-red-500/50 
-                       hover:border-red-500 flex items-center justify-center"
+                       hover:border-red-500 flex items-center justify-center
+                       animate-pulse"
+            title="Stop (Escape)"
           >
             <Square className="w-6 h-6 text-red-400" />
           </button>

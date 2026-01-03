@@ -45,6 +45,7 @@ interface SettingsState {
   isLoading: boolean
   setSettings: (settings: UserSettings) => void
   updateSetting: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void
+  updateSettings: (updates: Partial<UserSettings>) => void
   setModels: (models: OllamaModel[]) => void
   setVoices: (voices: Voice[], piperVoices?: Voice[], kokoroVoices?: Voice[]) => void
   setLoading: (loading: boolean) => void
@@ -77,6 +78,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   
   updateSetting: (key, value) => set((state) => ({
     settings: { ...state.settings, [key]: value }
+  })),
+  
+  // Atomic batch update for multiple settings at once
+  updateSettings: (updates) => set((state) => ({
+    settings: { ...state.settings, ...updates }
   })),
   
   setModels: (models) => set({ models }),

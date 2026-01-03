@@ -363,6 +363,15 @@ async def handle_web_search(
         await websocket.send_json({"type": "error", "message": "Search query required"})
         return
     
+    # Add location context to location-relevant queries
+    user_location = getattr(user_settings, 'user_location', '')
+    location_keywords = ['weather', 'forecast', 'temperature', 'restaurant', 'near', 'local', 'nearby', 'store', 'shop', 'open now']
+    if user_location and any(kw in query.lower() for kw in location_keywords):
+        # Only add location if not already in query
+        if user_location.lower() not in query.lower():
+            query = f"{query} in {user_location}"
+            logger.info(f"Added location context to query: '{query}'")
+    
     await websocket.send_json({"type": "status", "state": "searching"})
     await websocket.send_json({"type": "search_start", "query": query})
     
@@ -915,6 +924,7 @@ async def generate_response(
         nickname=user_settings.assistant_nickname,
         response_style=user_settings.response_style,
         user_name=user_name,
+        user_location=getattr(user_settings, 'user_location', ''),
         time_context=time_context,
         user_profile=user_profile_summary if user_profile_summary else None,
     )
@@ -1066,7 +1076,13 @@ async def generate_response(
                         user_messages = [m for m in state.messages if m.get("role") == "user"]
                         if user_messages:
                             original_query = user_messages[-1].get("content", "")
-                            logger.info(f"LLM indicated search intent, triggering search for: {original_query}")
+                            
+                            # Don't re-search if we already have search results in the message
+                            if "[I searched the web for:" in original_query or "=== WEB SEARCH RESULTS ===" in original_query:
+                                logger.debug("Skipping re-search - message already contains search results")
+                                break
+                            
+                            logger.info(f"LLM indicated search intent, triggering search for: {original_query[:100]}")
                             
                             await websocket.send_json({
                                 "type": "llm_chunk",

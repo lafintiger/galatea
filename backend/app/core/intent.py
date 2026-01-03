@@ -95,10 +95,25 @@ def detect_search_intent(text: str) -> tuple[bool, str]:
     
     for topic in realtime_topics:
         if re.search(topic, text_lower):
-            # Use the full question as search query
+            # Clean up the query - remove greetings, assistant names, filler words
             query = text.rstrip('?.!').strip()
+            
+            # Remove common greetings and assistant name mentions (multiple passes)
+            query = re.sub(r'^[,.\s]*(?:hey|hi|hello|yo)\s*[,!.]?\s*', '', query, flags=re.IGNORECASE)
+            query = re.sub(r'^[,.\s]*(?:gala|gila|galatea)\s*[,!.]?\s*', '', query, flags=re.IGNORECASE)
+            # Remove polite prefixes
+            query = re.sub(r'^[,.\s]*(?:can you|could you|would you|please)\s+', '', query, flags=re.IGNORECASE)
+            # Remove action words
+            query = re.sub(r'^[,.\s]*(?:take a look|look|check|search|find out|tell me)\s+(?:and\s+)?(?:see\s+)?', '', query, flags=re.IGNORECASE)
+            query = re.sub(r'^[,.\s]*(?:what(?:\'s| is| are))\s+', '', query, flags=re.IGNORECASE)
+            # Remove trailing polite words
+            query = re.sub(r'\s+(?:for me|please)$', '', query, flags=re.IGNORECASE)
+            # Clean up leading punctuation and spaces
+            query = re.sub(r'^[,.\s]+', '', query)
+            
+            query = query.strip()
             if len(query) > 5:
-                logger.debug(f"Auto-search triggered by realtime topic: {topic}")
+                logger.debug(f"Auto-search triggered by realtime topic: {topic}, query: '{query}'")
                 return True, query
     
     # Patterns that indicate explicit search request
