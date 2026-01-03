@@ -36,7 +36,8 @@ services:
       - "8010:8010"
     environment:
       # Ollama - defaults to Docker, override with OLLAMA_HOST env var
-      - OLLAMA_BASE_URL=${OLLAMA_HOST:-http://ollama:11434}
+      - OLLAMA_BASE_URL=${OLLAMA_HOST:-http://host.docker.internal:11434}
+      - DEFAULT_MODEL=${DEFAULT_MODEL:-qwen3:4b}
       # Voice services
       - WHISPER_HOST=whisper
       - WHISPER_PORT=10300
@@ -152,7 +153,7 @@ services:
         echo "⏳ Waiting for Ollama to be ready..."
         sleep 15
         echo "📥 Pulling default models (this may take 5-10 minutes)..."
-        ollama pull ministral-3:3b
+        ollama pull qwen3:4b
         ollama pull bge-m3:latest
         echo "✅ Models ready!"
     environment:
