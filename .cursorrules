@@ -1,0 +1,230 @@
+# Galatea Project Rules
+
+You are an AI agent working on Galatea, a local voice AI companion. Follow these conventions strictly.
+
+## Project Structure
+
+```
+galatea/
+├── backend/app/
+│   ├── main.py           # Entry point only (~90 lines)
+│   ├── config.py         # Pydantic Settings
+│   ├── core/             # Shared utilities
+│   │   ├── constants.py  # Enums for message types, status
+│   │   ├── exceptions.py # Custom exceptions (GalateaError hierarchy)
+│   │   ├── logging.py    # get_logger() function
+│   │   ├── audio.py      # Audio utilities
+│   │   ├── intent.py     # Regex fallback patterns
+│   │   └── tts.py        # TTS synthesis wrapper
+│   ├── handlers/         # WebSocket message handlers
+│   │   ├── base.py       # BaseHandler, HandlerContext
+│   │   ├── voice.py      # Audio/text input, LLM, TTS
+│   │   ├── vision.py     # Open/close eyes, describe
+│   │   ├── workspace.py  # Notes, todos, data
+│   │   ├── search.py     # Web search
+│   │   └── mcp.py        # Docker, Home Assistant
+│   ├── routers/          # API routes
+│   │   ├── api.py        # REST endpoints
+│   │   └── websocket.py  # WebSocket routing (~127 lines)
+│   ├── services/         # External service integrations
+│   │   ├── base.py       # BaseService, ServiceResult
+│   │   ├── container.py  # Dependency injection
+│   │   └── ...           # Individual service files
+│   └── models/
+│       └── schemas.py    # Pydantic models
+├── frontend/src/
+│   ├── components/       # React components
+│   ├── hooks/            # Custom React hooks
+│   ├── stores/           # Zustand state stores
+│   └── types/            # TypeScript types
+│       └── constants.ts  # Message types (must match backend)
+└── tests/                # pytest test files
+```
+
+## Coding Standards
+
+### Python (Backend)
+
+1. **Use type hints everywhere**
+   ```python
+   async def process(text: str, settings: UserSettings) -> Optional[dict]:
+   ```
+
+2. **Use `get_logger(__name__)` for logging, NEVER `print()`**
+   ```python
+   from app.core import get_logger
+   logger = get_logger(__name__)
+   
+   # Good
+   logger.info("Processing request")
+   logger.error("Failed", exc_info=True)
+   
+   # Bad - NEVER DO THIS
+   print("[DEBUG] something")
+   ```
+
+3. **Use custom exceptions from `core/exceptions.py`**
+   ```python
+   from app.core.exceptions import ServiceUnavailableError, TTSError
+   
+   # Good
+   raise ServiceUnavailableError("Ollama", url, suggestion="Check if Ollama is running")
+   
+   # Bad
+   raise Exception("Ollama is not available")
+   ```
+
+4. **Use constants from `core/constants.py` for message types**
+   ```python
+   from app.core.constants import MessageType, ResponseType, Status
+   
+   # Good
+   if msg_type == MessageType.AUDIO_DATA:
+       await ctx.send_status(Status.PROCESSING)
+   
+   # Bad
+   if msg_type == "audio_data":
+       await websocket.send_json({"type": "status", "state": "processing"})
+   ```
+
+5. **New features should go in handlers, not websocket.py**
+   - Create new handler in `handlers/` directory
+   - Add routing in `websocket.py` (2-3 lines only)
+   - Add message type constants if needed
+
+6. **Services should be stateless singletons**
+   ```python
+   class MyService:
+       def __init__(self):
+           self.logger = get_logger(__name__)
+       
+       async def do_something(self) -> ServiceResult[str]:
+           try:
+               # Implementation
+               return ServiceResult.ok(result)
+           except Exception as e:
+               return ServiceResult.fail(str(e))
+   
+   # Export singleton
+   my_service = MyService()
+   ```
+
+### TypeScript (Frontend)
+
+1. **Keep schemas in sync with backend**
+   - `settingsStore.ts` must match `schemas.py`
+   - `types/constants.ts` must match `core/constants.py`
+
+2. **Use Zustand for state management**
+   ```typescript
+   // Use atomic updates
+   updateSettings: (updates) => set((state) => ({
+     settings: { ...state.settings, ...updates }
+   })),
+   ```
+
+3. **WebSocket message types must match backend constants**
+   ```typescript
+   import { MessageType, ResponseType } from '../types/constants'
+   
+   ws.send(JSON.stringify({ type: MessageType.TEXT_MESSAGE, content: text }))
+   ```
+
+## Handler Pattern
+
+When adding a new feature:
+
+1. **Create handler class**
+   ```python
+   # handlers/myfeature.py
+   from .base import BaseHandler, HandlerContext
+   from ..core import get_logger, ResponseType, Status
+   
+   logger = get_logger(__name__)
+   
+   class MyFeatureHandler(BaseHandler):
+       async def handle(self, ctx: HandlerContext) -> None:
+           await ctx.send_status(Status.PROCESSING)
+           try:
+               result = await self._do_work(ctx)
+               await ctx.send_response(ResponseType.LLM_COMPLETE, text=result)
+           except Exception as e:
+               logger.error(f"MyFeature error: {e}", exc_info=True)
+               await ctx.send_error(str(e))
+           finally:
+               await ctx.send_status(Status.IDLE)
+   
+   my_feature_handler = MyFeatureHandler()
+   ```
+
+2. **Add constants if needed**
+   ```python
+   # core/constants.py
+   class MessageType(str, Enum):
+       MY_FEATURE = "my_feature"
+   ```
+
+3. **Register in websocket.py**
+   ```python
+   from ..handlers import my_feature_handler
+   
+   # In websocket_endpoint:
+   elif msg_type == MessageType.MY_FEATURE.value:
+       await my_feature_handler.safe_handle(ctx)
+   ```
+
+## Error Handling
+
+1. **Handlers use `safe_handle()` - it catches exceptions**
+2. **Services should return `ServiceResult` for recoverable errors**
+3. **Use `exc_info=True` in error logs for stack traces**
+4. **Send user-friendly errors via `ctx.send_error()`**
+
+## Testing
+
+1. **Tests go in `backend/tests/`**
+2. **Use pytest with async support**
+3. **Mock external services**
+   ```python
+   @pytest.mark.asyncio
+   async def test_my_feature():
+       with patch.object(service, 'method', new_callable=AsyncMock) as mock:
+           mock.return_value = expected
+           result = await handler.handle(ctx)
+           assert result == expected
+   ```
+
+## Common Gotchas
+
+1. **Windows console can't display emojis** - Never use emojis in `print()` or log messages
+2. **Thinking models need filtering** - `<think>` blocks must be stripped before TTS
+3. **Wyoming protocol** - Use official `wyoming` package, not custom implementation
+4. **Piper voice paths** - LinuxServer container uses `/config/` not `/data/`
+5. **Browser autoplay** - Must handle AudioContext resume for playback
+
+## File Length Guidelines
+
+- `main.py`: ~90 lines (entry point only)
+- `websocket.py`: ~150 lines (routing only)
+- Handlers: ~200-500 lines each
+- Services: ~200-400 lines each
+- If a file exceeds 500 lines, consider splitting it
+
+## Commit Messages
+
+Use conventional commits:
+- `feat:` - New features
+- `fix:` - Bug fixes
+- `refactor:` - Code restructuring
+- `docs:` - Documentation
+- `test:` - Tests
+- `chore:` - Maintenance
+
+Example: `feat: Add calendar integration handler`
+
+## Before Submitting
+
+1. Run tests: `pytest backend/tests/`
+2. Check types: `mypy backend/app/`
+3. Check imports work: `python -c "from app.main import app"`
+4. Verify Docker builds: `docker compose build galatea-backend`

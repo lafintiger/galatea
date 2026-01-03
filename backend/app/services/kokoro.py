@@ -2,13 +2,14 @@
 
 Uses Kokoro-FastAPI Docker container which provides an OpenAI-compatible TTS endpoint.
 """
-import asyncio
-import io
-import wave
 import httpx
 from typing import Optional
 
 from ..config import settings
+from ..core import get_logger
+from ..core.exceptions import TTSError, ServiceUnavailableError
+
+logger = get_logger(__name__)
 
 
 class KokoroService:
@@ -52,6 +53,7 @@ class KokoroService:
         self.base_url = settings.kokoro_base_url
         self.default_voice = settings.kokoro_default_voice
         self._client: Optional[httpx.AsyncClient] = None
+        self._is_available: Optional[bool] = None
     
     @property
     def client(self) -> httpx.AsyncClient:
@@ -81,10 +83,12 @@ class KokoroService:
             
         Returns:
             WAV audio bytes
+            
+        Raises:
+            TTSError: If synthesis fails
+            ServiceUnavailableError: If Kokoro is not reachable
         """
         voice = voice or self.default_voice
-        
-        # OpenAI-compatible TTS endpoint
         url = f"{self.base_url}/v1/audio/speech"
         
         payload = {
@@ -98,34 +102,47 @@ class KokoroService:
         try:
             response = await self.client.post(url, json=payload)
             response.raise_for_status()
+            logger.debug(f"Synthesized {len(text)} chars with voice {voice}")
             return response.content
+            
+        except httpx.ConnectError as e:
+            logger.error(f"Cannot connect to Kokoro at {self.base_url}")
+            raise ServiceUnavailableError(
+                service_name="Kokoro",
+                url=self.base_url,
+                suggestion="Is the Kokoro container running? Check: docker ps | grep kokoro"
+            )
         except httpx.HTTPStatusError as e:
-            raise Exception(f"Kokoro TTS HTTP error: {e.response.status_code} - {e.response.text}")
+            logger.error(f"Kokoro HTTP error: {e.response.status_code}")
+            raise TTSError(
+                provider="Kokoro",
+                voice=voice,
+                text_length=len(text),
+                cause=f"HTTP {e.response.status_code}: {e.response.text[:100]}"
+            )
         except httpx.RequestError as e:
-            raise Exception(f"Kokoro TTS request failed: {str(e)}")
+            logger.error(f"Kokoro request failed: {e}")
+            raise TTSError(
+                provider="Kokoro",
+                voice=voice,
+                cause=str(e)
+            )
     
     async def list_voices(self) -> list[dict]:
         """List available Kokoro voices"""
-        # Try to get voices from the API
         try:
             url = f"{self.base_url}/v1/audio/voices"
             response = await self.client.get(url)
             if response.status_code == 200:
                 data = response.json()
-                # Format voices from API response
-                # Kokoro returns {"voices": ["af_alloy", "af_bella", ...]}
                 voices = []
                 raw_voices = data.get("voices", [])
                 for voice in raw_voices:
-                    # Handle both string and dict formats
                     if isinstance(voice, str):
                         voice_id = voice
                     else:
                         voice_id = voice.get("id") or voice.get("voice_id") or str(voice)
                     
-                    # Determine language and gender from voice ID prefix
-                    # af_ = American Female, am_ = American Male
-                    # bf_ = British Female, bm_ = British Male
                     if voice_id.startswith("af_") or voice_id.startswith("am_"):
                         language = "en_US"
                     elif voice_id.startswith("bf_") or voice_id.startswith("bm_"):
@@ -135,11 +152,9 @@ class KokoroService:
                     
                     gender = "female" if voice_id.startswith("af_") or voice_id.startswith("bf_") else "male"
                     
-                    # Create a nice display name
                     name_part = voice_id.split("_", 1)[1] if "_" in voice_id else voice_id
                     prefix = voice_id.split("_")[0] if "_" in voice_id else ""
                     
-                    # Map prefix to description
                     prefix_map = {
                         "af": "American Female",
                         "am": "American Male", 
@@ -157,9 +172,10 @@ class KokoroService:
                         "gender": gender
                     })
                 if voices:
+                    logger.debug(f"Fetched {len(voices)} voices from Kokoro API")
                     return voices
         except Exception as e:
-            print(f"Could not fetch voices from Kokoro API: {e}")
+            logger.debug(f"Could not fetch voices from Kokoro API: {e}")
         
         # Return static voice list as fallback
         return self.VOICES
@@ -171,19 +187,20 @@ class KokoroService:
             response = await self.client.get(url)
             if response.status_code == 200:
                 return response.json()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"Kokoro health check failed: {e}")
         return None
     
     async def is_available(self) -> bool:
         """Check if Kokoro service is available"""
         try:
             info = await self.get_info()
-            return info is not None
+            self._is_available = info is not None
+            return self._is_available
         except Exception:
+            self._is_available = False
             return False
 
 
 # Singleton instance
 kokoro_service = KokoroService()
-
