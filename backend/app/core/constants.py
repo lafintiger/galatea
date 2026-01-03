@@ -142,6 +142,7 @@ class TTSProvider(str, Enum):
     """TTS provider options."""
     PIPER = "piper"
     KOKORO = "kokoro"
+    CHATTERBOX = "chatterbox"
 
 
 class ResponseStyle(str, Enum):

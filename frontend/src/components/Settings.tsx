@@ -224,7 +224,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 border`}
             >
               <Zap className="w-4 h-4" />
-              Piper (Fast)
+              Fast
             </button>
             <button
               onClick={() => {
@@ -242,12 +242,30 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                 border`}
             >
               <Crown className="w-4 h-4" />
-              Kokoro (HD)
+              HD
+            </button>
+            <button
+              onClick={() => {
+                const updates: any = { tts_provider: 'chatterbox' }
+                // Chatterbox uses 'default' voice initially
+                updates.selected_voice = 'default'
+                handleBatchSettingChange(updates)
+              }}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
+                ${settings.tts_provider === 'chatterbox'
+                  ? 'bg-amber-500/20 border-amber-500 text-amber-400'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              <Sparkles className="w-4 h-4" />
+              Clone
             </button>
           </div>
 
           <p className="text-xs text-slate-500 mb-4">
-            {settings.tts_provider === 'kokoro'
+            {settings.tts_provider === 'chatterbox'
+              ? '🎭 State-of-the-art with voice cloning & [laugh] tags (GPU, ~1-2s latency)'
+              : settings.tts_provider === 'kokoro'
               ? '✨ High-quality natural speech (CPU-based, ~1-2s latency)'
               : '⚡ Fast response times (CPU-based, <500ms latency)'}
           </p>
@@ -266,7 +284,13 @@ export function Settings({ websocket, onClose }: SettingsProps) {
               className="flex-1 px-3 py-2 rounded bg-cyber-dark border border-cyber-accent/30
                          text-slate-200 text-sm focus:outline-none focus:border-cyber-accent"
             >
-              {settings.tts_provider === 'kokoro' ? (
+              {settings.tts_provider === 'chatterbox' ? (
+                // Chatterbox voices (default + cloned)
+                <>
+                  <option value="default">Default (Female)</option>
+                  {/* Cloned voices would appear here from API */}
+                </>
+              ) : settings.tts_provider === 'kokoro' ? (
                 // Kokoro voices grouped by language
                 <>
                   {/* English (US) */}
@@ -472,7 +496,7 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                   </optgroup>
                 </>
               )}
-              {(settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).length === 0 && (
+              {settings.tts_provider !== 'chatterbox' && (settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).length === 0 && (
                 <option value={settings.selected_voice}>
                   {settings.selected_voice}
                 </option>
@@ -514,8 +538,27 @@ export function Settings({ websocket, onClose }: SettingsProps) {
 
           {/* Voice Preview List */}
           <div className="mt-3 space-y-1 max-h-32 overflow-y-auto">
-            <p className="text-xs text-slate-500 mb-2">Click to preview any voice:</p>
-            {(settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).map((voice) => (
+            <p className="text-xs text-slate-500 mb-2">
+              {settings.tts_provider === 'chatterbox' 
+                ? 'Chatterbox uses voice cloning. Upload a 10s audio clip to create custom voices.'
+                : 'Click to preview any voice:'}
+            </p>
+            {settings.tts_provider === 'chatterbox' ? (
+              <button
+                onClick={() => testVoice('default')}
+                disabled={isTestingVoice}
+                className="w-full flex items-center gap-2 p-2 rounded text-sm hover:bg-cyber-accent/10 
+                          text-left transition-colors text-amber-400 border border-amber-500/30"
+              >
+                {testingVoiceId === 'default' ? (
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                ) : (
+                  <Play className="w-3 h-3" />
+                )}
+                <span>Test Default Voice</span>
+                <Sparkles className="w-3 h-3 ml-auto" />
+              </button>
+            ) : (settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).map((voice) => (
               <button
                 key={voice.id}
                 onClick={() => {

@@ -66,3 +66,12 @@ export const WorkspaceAction = {
 } as const
 
 export type WorkspaceActionValue = (typeof WorkspaceAction)[keyof typeof WorkspaceAction]
+
+// TTS Providers
+export const TTSProvider = {
+  PIPER: 'piper',
+  KOKORO: 'kokoro',
+  CHATTERBOX: 'chatterbox',
+} as const
+
+export type TTSProviderValue = (typeof TTSProvider)[keyof typeof TTSProvider]

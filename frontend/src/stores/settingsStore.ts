@@ -25,8 +25,8 @@ export interface UserSettings {
   language: string
   // User location for weather, local info
   user_location: string
-  // TTS Provider: "piper" (fast, CPU) or "kokoro" (high quality, GPU)
-  tts_provider: 'piper' | 'kokoro'
+  // TTS Provider: "piper" (fast), "kokoro" (high quality), "chatterbox" (SoTA + cloning)
+  tts_provider: 'piper' | 'kokoro' | 'chatterbox'
   // Voice tuning for more natural speech (Piper-specific)
   voice_speed: number      // 0.5-2.0 (1.0 = normal)
   voice_variation: number  // 0-1 (higher = more expressive)

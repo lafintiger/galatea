@@ -33,8 +33,8 @@ class UserSettings(BaseModel):
     # User location for weather, local info, etc.
     user_location: str = ""  # e.g., "Redlands, California"
     
-    # TTS Provider: "piper" (fast, CPU) or "kokoro" (high quality, GPU)
-    tts_provider: Literal["piper", "kokoro"] = "kokoro"
+    # TTS Provider: "piper" (fast), "kokoro" (high quality), "chatterbox" (SoTA + cloning)
+    tts_provider: Literal["piper", "kokoro", "chatterbox"] = "kokoro"
     
     # Voice tuning for more natural/expressive speech (Piper-specific)
     voice_speed: float = 1.0  # length_scale: 0.5-2.0 (lower=faster, higher=slower)

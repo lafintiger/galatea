@@ -28,8 +28,12 @@ class Settings(BaseSettings):
     kokoro_base_url: str = "http://localhost:8880"
     kokoro_default_voice: str = "af_heart"
     
-    # TTS Provider: "piper" (fast, CPU) or "kokoro" (high quality, GPU)
+    # TTS Provider: "piper" (fast), "kokoro" (high quality), "chatterbox" (SoTA + cloning)
     tts_provider: str = "piper"
+    
+    # Chatterbox TTS (State-of-the-art TTS with voice cloning)
+    chatterbox_base_url: str = "http://localhost:8881"
+    chatterbox_default_voice: str = "default"
     
     # Web Search - SearXNG (meta-search engine)
     searxng_host: str = "localhost"

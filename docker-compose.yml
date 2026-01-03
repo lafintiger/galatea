@@ -12,6 +12,9 @@
 # WITH VISION ("Open Gala's eyes"):
 #   docker compose --profile vision up
 #
+# WITH CHATTERBOX (SoTA TTS + Voice Cloning):
+#   docker compose --profile chatterbox up
+#
 # FULL STACK + VISION:
 #   docker compose --profile full --profile vision up
 #
@@ -46,6 +49,7 @@ services:
       - PIPER_HOST=piper
       - PIPER_PORT=10200
       - KOKORO_BASE_URL=http://kokoro:8880
+      - CHATTERBOX_BASE_URL=http://chatterbox:8881
       # Search - defaults to host machine (for external Perplexica/SearXNG)
       - SEARXNG_HOST=${SEARXNG_HOST:-host.docker.internal}
       - SEARXNG_PORT=${SEARXNG_PORT:-4000}
@@ -114,6 +118,27 @@ services:
     restart: unless-stopped
     networks:
       - galatea-network
+
+  # Chatterbox - State-of-the-art TTS with voice cloning (requires GPU)
+  chatterbox:
+    build: ./docker/chatterbox
+    container_name: galatea-chatterbox
+    profiles: ["chatterbox", "full-tts"]
+    ports:
+      - "8881:8881"
+    volumes:
+      - chatterbox-voices:/app/voices
+    restart: unless-stopped
+    networks:
+      - galatea-network
+    # GPU support - uncomment for NVIDIA GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
 
   # ============================================
   # OLLAMA - Local LLM (Optional - use profile)
@@ -261,6 +286,8 @@ volumes:
     name: galatea-piper-voices
   perplexica-data:
     name: galatea-perplexica-data
+  chatterbox-voices:
+    name: galatea-chatterbox-voices
 
 # ============================================
 # NETWORK
