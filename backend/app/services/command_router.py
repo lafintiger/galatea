@@ -85,7 +85,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "open_eyes",
-            "description": "Start the vision system so Gala can see the user. Use when user asks to be seen, looked at, or wants face recognition.",
+            "description": "START the camera/vision system. ONLY use when user explicitly says 'open your eyes', 'turn on camera', 'start vision', or 'enable eyes'. Do NOT use for questions about what Gala sees.",
             "parameters": {
                 "type": "object",
                 "properties": {},
@@ -97,11 +97,28 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "close_eyes",
-            "description": "Stop the vision system. Use when user wants privacy or asks Gala to stop looking.",
+            "description": "STOP the camera/vision system. Use when user says 'close your eyes', 'turn off camera', 'stop watching'.",
             "parameters": {
                 "type": "object",
                 "properties": {},
                 "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "describe_view",
+            "description": "Analyze and describe what Gala sees RIGHT NOW. Use for ANY question about visual content: 'what do you see', 'describe me', 'describe my face', 'how many fingers', 'what am I wearing/holding/doing', 'what color is X', 'what is this', 'look at this'. This captures a photo and analyzes it.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "prompt": {
+                        "type": "string",
+                        "description": "The user's exact question to answer about what they see"
+                    }
+                },
+                "required": ["prompt"]
             }
         }
     },
@@ -419,7 +436,7 @@ When in doubt about whether something is a task, ASK the user: "Would you like m
 class CommandRouter:
     """Routes user commands using Ministral's function calling capability."""
     
-    def __init__(self, model: str = "qwen3:4b"):
+    def __init__(self, model: str = "ministral-3:latest"):
         self.model = model
         self.ollama_base_url = settings.ollama_base_url
         self.enabled = True
@@ -515,6 +532,9 @@ class CommandRouter:
         elif tool_name == "close_eyes":
             return {"action": "close_eyes"}
             
+        elif tool_name == "describe_view":
+            return {"action": "describe_view", "prompt": args.get("prompt", "")}
+            
         elif tool_name == "log_data":
             return {
                 "action": "log_data",
@@ -607,6 +627,9 @@ class CommandRouter:
             
         elif tool_name == "close_eyes":
             return "Closing my eyes."
+            
+        elif tool_name == "describe_view":
+            return "Let me look..."
             
         elif tool_name == "log_data":
             return f"Logged your {args.get('type', 'data')}."

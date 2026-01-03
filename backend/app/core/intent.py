@@ -212,6 +212,56 @@ def detect_vision_command(text: str) -> tuple[Optional[str], str]:
     return None, ""
 
 
+def detect_describe_view_command(text: str) -> tuple[bool, str]:
+    """Detect if the user is asking Gala to describe what she sees.
+    
+    Args:
+        text: User input text
+        
+    Returns:
+        (is_describe_request, prompt_for_vision) 
+    """
+    text_lower = text.lower().strip()
+    
+    # Patterns that indicate user wants Gala to describe current view
+    describe_patterns = [
+        # Direct "what do you see" questions
+        r"what\s+(?:do|can)\s+you\s+see",
+        r"what\s+are\s+you\s+(?:seeing|looking\s+at)",
+        r"tell\s+me\s+what\s+you\s+see",
+        r"describe\s+(?:what\s+you\s+see|my\s+room|this|my\s+face)",
+        # Self-description requests - these need word boundaries
+        r"\bdescribe\s+me\b",
+        r"\bdescribe\s+my\s+face\b",
+        r"what\s+do\s+i\s+look\s+like",
+        r"how\s+do\s+i\s+look",
+        r"what\s+does\s+my\s+face",
+        r"tell\s+me\s+(?:what|how)\s+i\s+look",
+        r"can\s+you\s+(?:see|describe)\s+(?:me|my)",
+        # Counting/identification requests
+        r"how\s+many\s+fingers",
+        r"what\s+am\s+i\s+(?:holding|wearing|doing)",
+        r"what\s+(?:is|are)\s+(?:this|these|that|those)",
+        r"what\s+color\s+(?:is|am)",
+        r"(?:can|do)\s+you\s+(?:see|tell)\s+(?:what|how)",
+        # Active vision requests
+        r"look\s+at\s+(?:this|me|my)",
+        r"check\s+this\s+out",
+        r"what\s+(?:does|do)\s+(?:this|it)\s+(?:say|look\s+like)",
+        r"read\s+(?:this|that|it)",
+        r"(?:who|what)\s+is\s+(?:in|on)\s+(?:the|my)",
+    ]
+    
+    for pattern in describe_patterns:
+        if re.search(pattern, text_lower):
+            # Return the original text as the prompt for the vision model
+            return True, text
+    
+    return False, ""
+    
+    return None, ""
+
+
 def detect_workspace_command(text: str) -> tuple[Optional[dict], str]:
     """Detect if the user is making a workspace command (notes, todos, data).
     

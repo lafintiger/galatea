@@ -19,7 +19,7 @@ from ..core import (
     get_logger,
     clean_for_speech,
     detect_search_intent,
-    detect_vision_command,
+    detect_vision_command,  # Keep for legacy, command router handles most
     detect_workspace_command,
     synthesize_tts,
 )
@@ -113,38 +113,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     await websocket.send_json({"type": "status", "state": "idle"})
             
             elif msg_type == "open_eyes":
-                try:
-                    await vision_live_service.start()
-                    user_settings.vision_enabled = True
-                    settings_manager.save(user_settings)
-                    await websocket.send_json({
-                        "type": "vision_status",
-                        "eyes_open": True,
-                        "message": "I can see you now"
-                    })
-                    logger.info("Gala's eyes opened")
-                except Exception as e:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": f"Could not open eyes: {str(e)}"
-                    })
+                # Use the full vision command handler for proper startup context
+                await handle_vision_command(websocket, "open", "Opening my eyes...", user_settings, state)
             
             elif msg_type == "close_eyes":
-                try:
-                    await vision_live_service.stop()
-                    user_settings.vision_enabled = False
-                    settings_manager.save(user_settings)
-                    await websocket.send_json({
-                        "type": "vision_status",
-                        "eyes_open": False,
-                        "message": "Eyes closed"
-                    })
-                    logger.info("Gala's eyes closed")
-                except Exception as e:
-                    await websocket.send_json({
-                        "type": "error",
-                        "message": f"Could not close eyes: {str(e)}"
-                    })
+                # Use the full vision command handler
+                await handle_vision_command(websocket, "close", "Closing my eyes.", user_settings, state)
             
             elif msg_type == "workspace_result":
                 await handle_workspace_result(websocket, state, data, user_settings)
@@ -226,6 +200,10 @@ async def handle_voice_input(
                 elif action == "close_eyes":
                     await handle_vision_command(websocket, "close", "Closing my eyes.", user_settings, state)
                     return
+                elif action == "describe_view":
+                    prompt = routed_cmd.get("prompt", "")
+                    await handle_describe_view(websocket, state, user_settings, prompt or transcript)
+                    return
                 elif action == "clarify":
                     clarify_msg = routed_cmd.get("message", "Would you like me to add that to your todo list?")
                     state.messages.append({"role": "user", "content": transcript})
@@ -241,13 +219,6 @@ async def handle_voice_input(
                     return
         except Exception as router_error:
             logger.warning(f"Command router error (falling back to regex): {router_error}")
-        
-        # Fallback: Regex-based detection
-        vision_cmd, vision_response = detect_vision_command(transcript)
-        if vision_cmd:
-            logger.debug(f"Detected vision command: '{vision_cmd}'")
-            await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
-            return
         
         workspace_cmd, workspace_response = detect_workspace_command(transcript)
         if workspace_cmd:
@@ -306,6 +277,10 @@ async def handle_text_input(
             elif action == "close_eyes":
                 await handle_vision_command(websocket, "close", "Closing my eyes.", user_settings, state)
                 return
+            elif action == "describe_view":
+                prompt = routed_cmd.get("prompt", "")
+                await handle_describe_view(websocket, state, user_settings, prompt or text)
+                return
             elif action == "clarify":
                 clarify_msg = routed_cmd.get("message", "Would you like me to add that to your todo list?")
                 state.messages.append({"role": "user", "content": text})
@@ -321,12 +296,6 @@ async def handle_text_input(
                 return
     except Exception as router_error:
         logger.warning(f"Text routing error (falling back): {router_error}")
-    
-    # Fallback: Regex-based detection
-    vision_cmd, vision_response = detect_vision_command(text)
-    if vision_cmd:
-        await handle_vision_command(websocket, vision_cmd, vision_response, user_settings, state)
-        return
     
     logger.debug(f"Checking for workspace command in: '{text}'")
     workspace_cmd, workspace_response = detect_workspace_command(text)
@@ -585,6 +554,105 @@ async def handle_vision_command(
     except Exception as e:
         error_msg = f"Couldn't {'open' if command == 'open' else 'close'} my eyes: {str(e)}"
         await websocket.send_json({"type": "error", "message": error_msg})
+
+
+async def handle_describe_view(
+    websocket: WebSocket,
+    state: ConversationState,
+    user_settings: UserSettings,
+    prompt: str
+):
+    """Handle 'describe what you see' requests - uses vision LLM to analyze current view."""
+    try:
+        await websocket.send_json({"type": "status", "state": "processing"})
+        
+        # Check if eyes are open
+        if not user_settings.vision_enabled:
+            error_msg = "I can't see anything right now - my eyes are closed. Say 'open your eyes' first."
+            await websocket.send_json({"type": "llm_complete", "text": error_msg})
+            state.messages.append({"role": "user", "content": prompt})
+            state.messages.append({"role": "assistant", "content": error_msg})
+            await websocket.send_json({"type": "status", "state": "speaking"})
+            audio_data = await synthesize_tts(
+                text=error_msg,
+                voice=user_settings.selected_voice,
+                provider=getattr(user_settings, 'tts_provider', 'piper'),
+                speed=getattr(user_settings, 'voice_speed', 1.0)
+            )
+            if audio_data:
+                await websocket.send_json({
+                    "type": "audio_chunk",
+                    "audio": base64.b64encode(audio_data).decode('utf-8'),
+                    "sentence": error_msg
+                })
+            await websocket.send_json({"type": "status", "state": "idle"})
+            return
+        
+        # Capture current frame
+        frame_data = await vision_live_service.capture_frame()
+        
+        if "error" in frame_data or not frame_data.get("image"):
+            error_msg = "I'm having trouble seeing right now. Let me try again in a moment."
+            await websocket.send_json({"type": "llm_complete", "text": error_msg})
+            state.messages.append({"role": "user", "content": prompt})
+            state.messages.append({"role": "assistant", "content": error_msg})
+            await websocket.send_json({"type": "status", "state": "idle"})
+            return
+        
+        image_base64 = frame_data["image"]
+        
+        # Build vision prompt based on user's question
+        if prompt:
+            vision_prompt = prompt
+        else:
+            vision_prompt = "Describe what you see in detail. Focus on any people, their actions, expressions, and the environment."
+        
+        await websocket.send_json({"type": "status", "state": "thinking"})
+        
+        # Send to vision model for analysis
+        result = await vision_service.analyze_image(
+            image_base64=image_base64,
+            prompt=vision_prompt,
+            model_type="general"
+        )
+        
+        if result.get("success"):
+            description = result.get("description", "I couldn't describe what I see.")
+            # Clean up thinking tags and emojis
+            description = clean_for_speech(description)
+        else:
+            description = f"I had trouble analyzing the image: {result.get('error', 'unknown error')}"
+        
+        # Send to frontend (already cleaned)
+        await websocket.send_json({"type": "llm_complete", "text": description})
+        
+        # Update conversation
+        state.messages.append({"role": "user", "content": prompt or "[Asked to describe view]"})
+        state.messages.append({"role": "assistant", "content": description})
+        
+        # Speak the response
+        await websocket.send_json({"type": "status", "state": "speaking"})
+        audio_data = await synthesize_tts(
+            text=description,
+            voice=user_settings.selected_voice,
+            provider=getattr(user_settings, 'tts_provider', 'piper'),
+            speed=getattr(user_settings, 'voice_speed', 1.0)
+        )
+        if audio_data:
+            await websocket.send_json({
+                "type": "audio_chunk",
+                "audio": base64.b64encode(audio_data).decode('utf-8'),
+                "sentence": description
+            })
+        
+        await websocket.send_json({"type": "status", "state": "idle"})
+        logger.info(f"Described view: {description[:100]}...")
+        
+    except Exception as e:
+        logger.error(f"Describe view error: {e}", exc_info=True)
+        error_msg = f"I had trouble seeing: {str(e)}"
+        await websocket.send_json({"type": "error", "message": error_msg})
+        await websocket.send_json({"type": "status", "state": "idle"})
 
 
 async def handle_mcp_command(
@@ -1171,9 +1239,11 @@ async def generate_response(
                 except Exception as e:
                     logger.error(f"TTS error for remainder: {e}")
         
-        await websocket.send_json({"type": "llm_complete", "text": full_response})
+        # Clean emojis from the final response for display
+        cleaned_response = clean_for_speech(full_response)
+        await websocket.send_json({"type": "llm_complete", "text": cleaned_response})
         
-        state.messages.append({"role": "assistant", "content": full_response})
+        state.messages.append({"role": "assistant", "content": cleaned_response})
     
     except Exception as e:
         logger.error(f"LLM error: {e}", exc_info=True)

@@ -20,11 +20,11 @@ class VisionService:
         self.ollama_url = settings.ollama_base_url
         self.client = httpx.AsyncClient(base_url=self.ollama_url, timeout=120.0)
         
-        # Available vision models (in order of preference)
+        # Available vision models - using ministral for all (fast, has vision + tools)
         self.models = {
-            "general": "granite3.2-vision:latest",      # Fast, general purpose
-            "ocr": "deepseek-ocr:latest",               # Text extraction
-            "uncensored": "huihui_ai/qwen3-vl-abliterated:2b",  # Uncensored
+            "general": "ministral-3:latest",            # Fast, vision + tool calling
+            "ocr": "ministral-3:latest",                # Same model for OCR
+            "uncensored": "ministral-3:latest",         # Same model
         }
         
         # Keywords that suggest OCR is needed
@@ -77,24 +77,27 @@ class VisionService:
             # Load the vision model (model_manager will handle VRAM)
             await model_manager.load_model(model_name)
             
-            # Call Ollama's vision API
+            # Call Ollama's chat API (required for qwen3-vl)
             response = await self.client.post(
-                "/api/generate",
+                "/api/chat",
                 json={
                     "model": model_name,
-                    "prompt": prompt,
-                    "images": [image_base64],
+                    "messages": [{
+                        "role": "user",
+                        "content": prompt,
+                        "images": [image_base64]
+                    }],
                     "stream": False,
                     "options": {
                         "temperature": 0.7,
-                        "num_predict": 500,  # Reasonable response length
+                        "num_predict": 2048,
                     }
                 }
             )
             response.raise_for_status()
             
             result = response.json()
-            description = result.get("response", "").strip()
+            description = result.get("message", {}).get("content", "").strip()
             
             print(f"[Vision] Analysis complete ({len(description)} chars)")
             

@@ -8,10 +8,13 @@ A privacy-first, local AI voice assistant that runs entirely on your machine. Na
 
 - 🎤 **Voice Conversation** - Natural voice input and output
 - 🤖 **Local LLM** - Powered by Ollama (runs on your GPU)
+- 👁️ **Vision** - "What do you see?" - Gala can describe you and your surroundings
 - 🔒 **Privacy First** - All processing happens locally
 - 🎨 **Futuristic UI** - Beautiful cyberpunk-inspired interface
 - ⚡ **Real-time** - WebSocket-based streaming responses
 - 🎛️ **Customizable** - Choose your model, voice, and personality
+- 🔍 **Web Search** - Ask about weather, news, prices (via SearXNG/Perplexica)
+- 📝 **Workspace** - Voice-controlled notes, todos, and data tracking
 
 ## Architecture
 
@@ -181,16 +184,24 @@ docker ps
 # kokoro-tts on port 8880 (if using Kokoro)
 ```
 
-### 2. Install Ollama and a Model
+### 2. Install Ollama and Models
 
 ```bash
 # After installing Ollama from https://ollama.ai/
-# Pull a recommended model:
-ollama pull qwen2.5:7b
 
-# Or for more capable conversations:
-ollama pull qwen2.5:14b
+# REQUIRED: Ministral-3 for command routing + vision (fast, 3B)
+ollama pull ministral-3:latest
+
+# Chat model (choose one):
+ollama pull qwen2.5:7b          # Balanced
+ollama pull qwen2.5:14b         # More capable
+ollama pull huihui_ai/qwen3-abliterated:4b  # Uncensored
 ```
+
+**Ministral-3** is a unified model that handles:
+- ⚡ **Command routing** - Fast tool calling for todos, notes, vision
+- 👁️ **Vision analysis** - Describe what Gala sees (no model switching!)
+- 🔧 **Function calling** - Optimized for agentic tasks
 
 ### 3. Clone and Setup Backend
 

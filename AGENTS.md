@@ -71,6 +71,45 @@ backend/app/
 - Added `TZ` environment variable for timezone awareness
 - SearXNG configured via `host.docker.internal` for Mac Docker
 
+### January 3, 2026 - Unified Vision & Command Routing with Ministral
+
+**Ministral-3 Unified Model:**
+- **Command Router** now uses `ministral-3:latest` for tool calling (fast, optimized)
+- **Vision Service** also uses `ministral-3:latest` for image analysis
+- **No model switching** between routing and vision = faster responses
+- Ministral handles: tool calling, vision analysis, and command routing in one model
+
+**Vision Service Fixes:**
+- Fixed `/api/generate` endpoint not working with vision models
+- Switched to `/api/chat` endpoint which properly supports image analysis
+- Increased `num_predict` from 500 to 2048 (thinking models need more tokens)
+- Emojis now cleaned from ALL responses (not just TTS)
+
+**Command Router Improvements:**
+- Improved tool descriptions for clearer routing:
+  - `open_eyes`: Only for "open your eyes", "turn on camera" (starting vision)
+  - `describe_view`: For ALL vision questions ("what do you see", "describe me", "how many fingers")
+  - `close_eyes`: Only for "close your eyes", "stop watching"
+- Removed brittle regex fallback - LLM handles all intent detection naturally
+
+**Required Model:**
+```bash
+ollama pull ministral-3:latest  # 3B params, vision + tool calling
+```
+
+**Architecture:**
+```
+User: "describe my face"
+       ↓
+   Ministral-3 (command router)
+   → Detects: describe_view tool
+       ↓
+   Ministral-3 (vision service)  ← Same model, no switch!
+   → Captures frame, analyzes image
+       ↓
+   Response: "You're wearing glasses and a dark shirt..."
+```
+
 ### Code Review Document
 
 See `codereview.md` for comprehensive assessment.

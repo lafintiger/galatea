@@ -53,7 +53,8 @@ services:
       - PERPLEXICA_PORT=${PERPLEXICA_PORT:-3000}
       - TTS_PROVIDER=${TTS_PROVIDER:-kokoro}
       # Vision - Gala's eyes (optional, requires --profile vision)
-      - VISION_HOST=${VISION_HOST:-galatea-vision}
+      # Vision - use host.docker.internal for native Mac vision service
+      - VISION_HOST=${VISION_HOST:-host.docker.internal}
       - VISION_PORT=${VISION_PORT:-8020}
     volumes:
       - galatea-data:/app/data

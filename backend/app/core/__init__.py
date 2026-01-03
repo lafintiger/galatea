@@ -11,7 +11,7 @@ from .exceptions import (
     ConfigurationError,
 )
 from .audio import clean_for_speech, split_into_sentences, detect_sentence_boundary
-from .intent import detect_search_intent, detect_vision_command, detect_workspace_command
+from .intent import detect_search_intent, detect_vision_command, detect_workspace_command, detect_describe_view_command
 from .tts import synthesize_tts
 
 __all__ = [
@@ -35,6 +35,7 @@ __all__ = [
     "detect_search_intent",
     "detect_vision_command",
     "detect_workspace_command",
+    "detect_describe_view_command",
     # TTS
     "synthesize_tts",
 ]
