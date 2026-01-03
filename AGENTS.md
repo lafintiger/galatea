@@ -24,15 +24,31 @@ backend/app/
 ├── main.py              # App setup, CORS, lifespan only (~90 lines)
 ├── core/
 │   ├── __init__.py      # Exports all core utilities
+│   ├── constants.py     # MessageType, ResponseType, Status enums
 │   ├── logging.py       # get_logger(), colored console output
 │   ├── exceptions.py    # GalateaError hierarchy
 │   ├── audio.py         # clean_for_speech(), sentence splitting
-│   ├── intent.py        # detect_search_intent(), detect_vision_command(), detect_workspace_command()
+│   ├── intent.py        # Regex fallback patterns (rarely used now)
 │   └── tts.py           # synthesize_tts() unified interface
-└── routers/
-    ├── __init__.py      # Exports api_router, websocket_router
-    ├── api.py           # All REST endpoints (~600 lines)
-    └── websocket.py     # WebSocket handler + message handlers (~700 lines)
+├── handlers/            # WebSocket message handlers (NEW)
+│   ├── __init__.py      # Handler registry
+│   ├── base.py          # BaseHandler, HandlerContext
+│   ├── voice.py         # Audio/text input, LLM, TTS
+│   ├── vision.py        # Open/close eyes, describe
+│   ├── workspace.py     # Notes, todos, data
+│   ├── search.py        # Web search
+│   └── mcp.py           # Docker, Home Assistant
+├── routers/
+│   ├── __init__.py      # Exports api_router, websocket_router
+│   ├── api.py           # All REST endpoints (~600 lines)
+│   └── websocket.py     # WebSocket routing only (~127 lines)
+├── services/
+│   ├── base.py          # BaseService, ServiceResult
+│   ├── container.py     # Dependency injection container
+│   └── ...              # Individual service files
+└── tests/
+    ├── conftest.py      # Shared test fixtures
+    └── test_*.py        # Unit tests
 ```
 
 ### Bugs Fixed During Refactor
@@ -110,9 +126,62 @@ User: "describe my face"
    Response: "You're wearing glasses and a dark shirt..."
 ```
 
+### January 3, 2026 - Architecture Refactoring
+
+**websocket.py Split into Handlers:**
+The monolithic `websocket.py` (1,258 lines) has been split into focused handler modules:
+
+| Before | After |
+|--------|-------|
+| `websocket.py`: 1,258 lines | `websocket.py`: 127 lines |
+| All logic in one file | 6 specialized handlers |
+
+**New Handler Architecture:**
+```
+backend/app/handlers/
+├── __init__.py      # Handler registry
+├── base.py          # BaseHandler, HandlerContext, ConversationState
+├── voice.py         # Audio/text input, LLM streaming, TTS (472 lines)
+├── vision.py        # Open/close eyes, describe view (213 lines)
+├── workspace.py     # Notes, todos, data tracking (170 lines)
+├── search.py        # Web search via SearXNG/Perplexica (179 lines)
+└── mcp.py           # Docker, Home Assistant control (312 lines)
+```
+
+**Type-Safe Constants:**
+```python
+# core/constants.py - No more magic strings!
+from app.core.constants import MessageType, ResponseType, Status
+
+if msg_type == MessageType.AUDIO_DATA:  # Type-safe enum
+    await ctx.send_status(Status.PROCESSING)
+```
+
+**Service Infrastructure:**
+- `services/base.py`: BaseService class with logging, HTTP helpers, ServiceResult wrapper
+- `services/container.py`: Dependency injection container for all services
+- All services now use `get_logger(__name__)` instead of `print()`
+
+**Testing Infrastructure:**
+```
+backend/tests/
+├── conftest.py           # Shared fixtures (mock_websocket, sample_settings)
+├── test_command_router.py # Command routing tests
+└── test_handlers.py       # Handler unit tests
+```
+
+**Adding New Features:**
+1. Create `handlers/myfeature.py` extending `BaseHandler`
+2. Add constants to `core/constants.py`
+3. Add 2-3 routing lines to `websocket.py`
+4. Write tests in `tests/test_myfeature.py`
+
+**Agent Rules File:**
+See `.cursorrules` for comprehensive coding conventions all agents must follow.
+
 ### Code Review Document
 
-See `codereview.md` for comprehensive assessment.
+See `CODE_REVIEW.md` for comprehensive architecture assessment.
 
 ---
 
