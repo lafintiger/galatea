@@ -1,5 +1,17 @@
-"""Core module - logging, exceptions, and shared utilities."""
+"""Core module - logging, exceptions, constants, and shared utilities."""
 from .logging import get_logger, setup_logging
+from .constants import (
+    MessageType,
+    ResponseType,
+    Status,
+    VisionCommand,
+    WorkspaceAction,
+    MCPAction,
+    ToolName,
+    TTSProvider,
+    ResponseStyle,
+    ActivationMode,
+)
 from .exceptions import (
     GalateaError,
     ServiceUnavailableError,
@@ -18,6 +30,17 @@ __all__ = [
     # Logging
     "get_logger",
     "setup_logging",
+    # Constants
+    "MessageType",
+    "ResponseType",
+    "Status",
+    "VisionCommand",
+    "WorkspaceAction",
+    "MCPAction",
+    "ToolName",
+    "TTSProvider",
+    "ResponseStyle",
+    "ActivationMode",
     # Exceptions
     "GalateaError",
     "ServiceUnavailableError", 
