@@ -221,7 +221,32 @@ deploy:
 2. Click **Clone** button in Voice Engine section
 3. Use "Default" voice or upload audio to clone your own voice
 
-**Voice Cloning (via API):**
+**Voice Cloning in the UI:**
+
+1. Go to **Settings** → **Voice Engine** → Click **Clone**
+2. Enter a name for the voice (e.g., "Dad's Voice")
+3. Either:
+   - **Record Live**: Click "Start Recording" and have them speak for 15-30 seconds
+   - **Upload File**: Click "Upload File" to use an existing audio file
+4. Click **Clone This Voice**
+5. The new voice appears in your voice list!
+
+**Recording Tips for Best Results:**
+
+| Tip | Why |
+|-----|-----|
+| **15-30 seconds** | More audio = better quality clone |
+| **Quiet room** | Minimizes background noise |
+| **Natural speech** | Don't be too formal or stiff |
+| **Vary emotion** | Helps capture vocal range |
+| **Close to mic** | Clearer audio capture |
+
+**Sample Script** (have them read this):
+> "Hello, my name is [name] and I'm recording my voice. I like to speak 
+> naturally with different emotions. Sometimes I'm excited! Other times 
+> I'm calm and thoughtful. Let me tell you about my day..."
+
+**Voice Cloning via API:**
 ```bash
 # Clone a voice from audio file
 curl -X POST http://localhost:8881/v1/audio/clone \
