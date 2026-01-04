@@ -26,6 +26,14 @@ export function Settings({ websocket, onClose }: SettingsProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   
+  // Voice recording state
+  const [isRecording, setIsRecording] = useState(false)
+  const [recordingTime, setRecordingTime] = useState(0)
+  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
+  const recordingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const audioChunksRef = useRef<Blob[]>([])
+  
   // Fetch cloned voices when chatterbox is selected
   useEffect(() => {
     const fetchClonedVoices = async () => {
@@ -100,6 +108,100 @@ export function Settings({ websocket, onClose }: SettingsProps) {
       }
     } catch (e) {
       console.error('Failed to delete voice')
+    }
+  }
+  
+  // Voice recording functions
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' })
+      mediaRecorderRef.current = mediaRecorder
+      audioChunksRef.current = []
+      
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          audioChunksRef.current.push(event.data)
+        }
+      }
+      
+      mediaRecorder.onstop = () => {
+        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        setRecordedBlob(audioBlob)
+        setSelectedFile(null) // Clear any uploaded file
+        stream.getTracks().forEach(track => track.stop())
+      }
+      
+      mediaRecorder.start(100) // Collect data every 100ms
+      setIsRecording(true)
+      setRecordingTime(0)
+      setRecordedBlob(null)
+      
+      // Update recording time every second
+      recordingIntervalRef.current = setInterval(() => {
+        setRecordingTime(prev => prev + 1)
+      }, 1000)
+      
+    } catch (e) {
+      setCloneError('Could not access microphone. Please allow mic access.')
+    }
+  }
+  
+  const stopRecording = () => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop()
+      setIsRecording(false)
+      if (recordingIntervalRef.current) {
+        clearInterval(recordingIntervalRef.current)
+        recordingIntervalRef.current = null
+      }
+    }
+  }
+  
+  const clearRecording = () => {
+    setRecordedBlob(null)
+    setRecordingTime(0)
+  }
+  
+  const handleCloneFromRecording = async () => {
+    if (!recordedBlob || !newVoiceName.trim()) return
+    
+    setIsCloning(true)
+    setCloneError(null)
+    
+    try {
+      // Convert webm to wav-compatible format for the API
+      const formData = new FormData()
+      formData.append('name', newVoiceName.trim())
+      formData.append('audio', recordedBlob, 'recording.webm')
+      
+      const response = await fetch('/api/chatterbox/clone', {
+        method: 'POST',
+        body: formData
+      })
+      
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.detail || 'Clone failed')
+      }
+      
+      const result = await response.json()
+      
+      // Add to cloned voices list
+      setClonedVoices(prev => [...prev, { id: result.voice_id, name: result.name }])
+      
+      // Select the new voice
+      handleSettingChange('selected_voice', result.voice_id)
+      
+      // Clear form
+      setNewVoiceName('')
+      setRecordedBlob(null)
+      setRecordingTime(0)
+      
+    } catch (e: any) {
+      setCloneError(e.message || 'Voice cloning failed')
+    } finally {
+      setIsCloning(false)
     }
   }
 
@@ -703,40 +805,130 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                              placeholder:text-slate-500 mb-2"
                   />
                   
-                  <div className="flex gap-2">
+                  {/* Recording Section */}
+                  <div className="mb-3 p-3 rounded bg-cyber-dark/50 border border-amber-500/20">
+                    <p className="text-xs text-slate-400 mb-2">
+                      🎙️ Record voice sample (15-30 seconds recommended)
+                    </p>
+                    
+                    {!isRecording && !recordedBlob && (
+                      <button
+                        onClick={startRecording}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded text-sm
+                                 bg-red-500/10 border border-red-500/50 text-red-400
+                                 hover:bg-red-500/20 hover:border-red-500 transition-all"
+                      >
+                        <Mic className="w-5 h-5" />
+                        Start Recording
+                      </button>
+                    )}
+                    
+                    {isRecording && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-red-400 text-sm flex items-center gap-2">
+                            <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            Recording... {recordingTime}s
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {recordingTime < 10 ? 'Keep going!' : recordingTime < 20 ? 'Good length' : 'Great!'}
+                          </span>
+                        </div>
+                        <button
+                          onClick={stopRecording}
+                          className="w-full flex items-center justify-center gap-2 px-3 py-3 rounded text-sm
+                                   bg-red-500/20 border border-red-500 text-red-400
+                                   hover:bg-red-500/30 transition-all animate-pulse"
+                        >
+                          <Square className="w-4 h-4" />
+                          Stop Recording ({recordingTime}s)
+                        </button>
+                      </div>
+                    )}
+                    
+                    {recordedBlob && !isRecording && (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-green-400 flex items-center gap-2">
+                            ✓ Recorded {recordingTime} seconds
+                          </span>
+                          <button
+                            onClick={clearRecording}
+                            className="text-slate-400 hover:text-red-400 text-xs"
+                          >
+                            Clear & Re-record
+                          </button>
+                        </div>
+                        <button
+                          onClick={handleCloneFromRecording}
+                          disabled={isCloning || !newVoiceName.trim()}
+                          className="w-full px-4 py-3 rounded text-sm bg-amber-500/20 border border-amber-500
+                                   text-amber-400 hover:bg-amber-500/30 transition-all
+                                   disabled:opacity-50 disabled:cursor-not-allowed
+                                   flex items-center justify-center gap-2"
+                        >
+                          {isCloning ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          Clone This Voice
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  
+                  {/* Or Upload Section */}
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-amber-500/20"></div>
+                    </div>
+                    <div className="relative flex justify-center text-xs">
+                      <span className="px-2 bg-cyber-darker text-slate-500">or upload a file</span>
+                    </div>
+                  </div>
+                  
+                  <div className="flex gap-2 mt-3">
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept="audio/*"
-                      onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
+                      onChange={(e) => {
+                        setSelectedFile(e.target.files?.[0] || null)
+                        setRecordedBlob(null) // Clear recording if uploading
+                      }}
                       className="hidden"
                       id="voice-upload"
                     />
                     <button
                       onClick={() => fileInputRef.current?.click()}
+                      disabled={isRecording}
                       className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded text-sm
                                bg-cyber-dark border border-amber-500/30 text-slate-400
-                               hover:border-amber-500 hover:text-amber-400 transition-all"
+                               hover:border-amber-500 hover:text-amber-400 transition-all
+                               disabled:opacity-50"
                     >
                       <Upload className="w-4 h-4" />
-                      {selectedFile ? selectedFile.name.slice(0, 20) + '...' : 'Upload Audio'}
+                      {selectedFile ? selectedFile.name.slice(0, 15) + '...' : 'Upload File'}
                     </button>
                     
-                    <button
-                      onClick={handleCloneVoice}
-                      disabled={isCloning || !selectedFile || !newVoiceName.trim()}
-                      className="px-4 py-2 rounded text-sm bg-amber-500/20 border border-amber-500
-                               text-amber-400 hover:bg-amber-500/30 transition-all
-                               disabled:opacity-50 disabled:cursor-not-allowed
-                               flex items-center gap-2"
-                    >
-                      {isCloning ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="w-4 h-4" />
-                      )}
-                      Clone
-                    </button>
+                    {selectedFile && (
+                      <button
+                        onClick={handleCloneVoice}
+                        disabled={isCloning || !newVoiceName.trim()}
+                        className="px-4 py-2 rounded text-sm bg-amber-500/20 border border-amber-500
+                                 text-amber-400 hover:bg-amber-500/30 transition-all
+                                 disabled:opacity-50 disabled:cursor-not-allowed
+                                 flex items-center gap-2"
+                      >
+                        {isCloning ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Sparkles className="w-4 h-4" />
+                        )}
+                        Clone
+                      </button>
+                    )}
                   </div>
                   
                   {cloneError && (
@@ -745,10 +937,6 @@ export function Settings({ websocket, onClose }: SettingsProps) {
                       {cloneError}
                     </p>
                   )}
-                  
-                  <p className="text-xs text-slate-500 mt-2">
-                    Upload 10+ seconds of clear speech for best results
-                  </p>
                 </div>
               </div>
             ) : (settings.tts_provider === 'kokoro' ? kokoroVoices : piperVoices).map((voice) => (
