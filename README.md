@@ -48,18 +48,83 @@ All components (Python, Node.js, Docker, Ollama) are cross-platform.
 
 ## Prerequisites
 
+- **Docker Desktop** - [Download here](https://www.docker.com/products/docker-desktop/)
+- **Ollama** - [Download here](https://ollama.ai/) (or use Docker version)
+
+## Quick Start (Docker Compose) ⭐ Recommended
+
+The easiest way to run Galatea - one command starts everything!
+
+### 1. Clone and Start
+
+```bash
+# Clone the repository
+git clone https://github.com/lafintiger/galatea.git
+cd galatea
+
+# Start Galatea (uses your existing Ollama installation)
+docker compose up -d
+
+# Or start EVERYTHING including Ollama:
+docker compose --profile full up -d
+```
+
+### 2. Install Required Ollama Models
+
+```bash
+# Command router + vision (required)
+ollama pull ministral-3:latest
+
+# Chat model (pick one)
+ollama pull qwen2.5:7b
+```
+
+### 3. Open Galatea
+
+Navigate to **http://localhost:5173** in your browser. That's it! 🎉
+
+### Optional Profiles
+
+```bash
+# With Chatterbox voice cloning (requires HF_TOKEN + NVIDIA GPU)
+export HF_TOKEN=your_huggingface_token
+docker compose --profile chatterbox up -d
+
+# With Vision (Gala can see you)
+docker compose --profile vision up -d
+
+# Everything at once
+docker compose --profile full --profile chatterbox --profile vision up -d
+```
+
+### Access Points
+
+| Service | URL |
+|---------|-----|
+| **Galatea** | http://localhost:5173 |
+| **Backend API** | http://localhost:8010 |
+| **Kokoro TTS Web UI** | http://localhost:8880/web |
+
+---
+
+## Manual Setup (For Development)
+
+If you want to run services individually or develop locally:
+
+### Prerequisites for Manual Setup
+
 - **Python 3.11+**
 - **Node.js 18+**
-- **Docker Desktop** - [Download here](https://www.docker.com/products/docker-desktop/)
-- **Ollama** - [Download here](https://ollama.ai/)
+- **Docker Desktop**
+- **Ollama**
 
-## Quick Start
+### 1. Install Voice Services (STT & TTS)
 
-### 1. Install Docker Containers (STT & TTS)
-
-First, install and start the required Docker containers for speech-to-text (Whisper) and text-to-speech (Piper):
+You can run these individually or let docker-compose handle them:
 
 #### Wyoming Whisper (Faster-Whisper STT)
+
+> **Note:** If using `docker compose up`, this is already included! These commands are for manual setup only.
 
 ```bash
 # Pull and run the Wyoming Whisper container
@@ -272,7 +337,7 @@ docker ps
 # kokoro-tts on port 8880 (if using Kokoro)
 ```
 
-### 2. Install Ollama and Models
+### 2. Install Ollama and Models (if not using docker-compose)
 
 ```bash
 # After installing Ollama from https://ollama.ai/
@@ -286,59 +351,32 @@ ollama pull qwen2.5:14b         # More capable
 ollama pull huihui_ai/qwen3-abliterated:4b  # Uncensored
 ```
 
-**Ministral-3** is a unified model that handles:
-- ⚡ **Command routing** - Fast tool calling for todos, notes, vision
-- 👁️ **Vision analysis** - Describe what Gala sees (no model switching!)
-- 🔧 **Function calling** - Optimized for agentic tasks
-
-### 3. Clone and Setup Backend
+### 3. Run Backend Locally (Development)
 
 ```bash
 git clone https://github.com/lafintiger/galatea.git
-cd galatea
+cd galatea/backend
 
-# Create Python virtual environment
-cd backend
+# Create and activate virtual environment
 python -m venv venv
-
-# Activate virtual environment
-# Windows:
-.\venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
+source venv/bin/activate  # Windows: .\venv\Scripts\activate
 
 # Install dependencies
 pip install -r requirements.txt
-```
 
-### 4. Setup Frontend
-
-```bash
-cd ../frontend
-npm install
-```
-
-### 5. Start the Application
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-
-# Windows:
-.\venv\Scripts\activate
-# macOS/Linux:
-source venv/bin/activate
-
+# Start backend
 python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8010
 ```
 
-**Terminal 2 - Frontend:**
+### 4. Run Frontend Locally (Development)
+
 ```bash
-cd frontend
+cd galatea/frontend
+npm install
 npm run dev
 ```
 
-### 6. Open Galatea
+### 5. Open Galatea
 
 Navigate to `http://localhost:5173` in your browser.
 
