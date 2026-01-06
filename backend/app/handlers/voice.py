@@ -22,6 +22,7 @@ from ..core import (
 )
 from ..services.ollama import ollama_service, get_time_context
 from ..services.wyoming import whisper_service
+from ..services.parakeet import parakeet_service
 from ..services.embedding import embedding_service
 from ..services.user_profile import user_profile_service
 from ..services.vision_live import vision_live_service
@@ -54,11 +55,27 @@ class VoiceHandler(BaseHandler):
         
         audio_bytes = base64.b64decode(audio_b64)
         
-        # Transcribe
+        # Transcribe using selected STT provider
         await ctx.send_status(Status.PROCESSING)
         
         try:
-            transcript = await whisper_service.transcribe(audio_bytes)
+            stt_provider = ctx.user_settings.stt_provider
+            
+            if stt_provider == "parakeet":
+                # Try Parakeet first, fall back to Whisper if unavailable
+                try:
+                    if await parakeet_service.is_available():
+                        transcript = await parakeet_service.transcribe(audio_bytes)
+                        logger.debug("Transcription via Parakeet")
+                    else:
+                        logger.warning("Parakeet unavailable, falling back to Whisper")
+                        transcript = await whisper_service.transcribe(audio_bytes)
+                except Exception as e:
+                    logger.warning(f"Parakeet error, falling back to Whisper: {e}")
+                    transcript = await whisper_service.transcribe(audio_bytes)
+            else:
+                # Default: Whisper
+                transcript = await whisper_service.transcribe(audio_bytes)
             
             if not transcript or not transcript.strip():
                 await ctx.send_status(Status.IDLE)

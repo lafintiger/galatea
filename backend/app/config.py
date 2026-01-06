@@ -35,6 +35,13 @@ class Settings(BaseSettings):
     chatterbox_base_url: str = "http://localhost:8881"
     chatterbox_default_voice: str = "default"
     
+    # STT Provider: "whisper" (stable) or "parakeet" (fast, NVIDIA)
+    stt_provider: str = "whisper"
+    
+    # Parakeet ASR (NVIDIA low-latency STT)
+    parakeet_base_url: str = "http://localhost:50052"
+    parakeet_model: str = "parakeet-ctc-1.1b"
+    
     # Web Search - SearXNG (meta-search engine)
     searxng_host: str = "localhost"
     searxng_port: int = 4000

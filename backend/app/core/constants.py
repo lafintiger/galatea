@@ -145,6 +145,12 @@ class TTSProvider(str, Enum):
     CHATTERBOX = "chatterbox"
 
 
+class STTProvider(str, Enum):
+    """STT (Speech-to-Text) provider options."""
+    WHISPER = "whisper"      # Wyoming Whisper - stable, batch processing
+    PARAKEET = "parakeet"    # NVIDIA Parakeet - fast, streaming capable
+
+
 class ResponseStyle(str, Enum):
     """LLM response style options."""
     CONCISE = "concise"

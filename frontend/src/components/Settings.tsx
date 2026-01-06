@@ -387,6 +387,45 @@ export function Settings({ websocket, onClose }: SettingsProps) {
           </select>
         </section>
 
+        {/* STT Engine Selection */}
+        <section>
+          <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">
+            <Mic className="w-4 h-4 text-blue-400" />
+            Speech Recognition
+          </h3>
+
+          <div className="flex gap-2 mb-4">
+            <button
+              onClick={() => handleSettingChange('stt_provider', 'whisper')}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
+                ${settings.stt_provider === 'whisper'
+                  ? 'bg-blue-500/20 border-blue-500 text-blue-400'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              <Bot className="w-4 h-4" />
+              Whisper
+            </button>
+            <button
+              onClick={() => handleSettingChange('stt_provider', 'parakeet')}
+              className={`flex-1 px-3 py-2 rounded text-sm transition-all flex items-center justify-center gap-2
+                ${settings.stt_provider === 'parakeet'
+                  ? 'bg-green-500/20 border-green-500 text-green-400'
+                  : 'bg-cyber-dark border-cyber-accent/30 text-slate-400'}
+                border`}
+            >
+              <Zap className="w-4 h-4" />
+              Parakeet
+            </button>
+          </div>
+
+          <p className="text-xs text-slate-500 mb-4">
+            {settings.stt_provider === 'parakeet'
+              ? '⚡ NVIDIA Parakeet - Low latency streaming (requires GPU)'
+              : '🎯 OpenAI Whisper - Stable and accurate (CPU/GPU)'}
+          </p>
+        </section>
+
         {/* TTS Engine Selection */}
         <section>
           <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-300 mb-3">

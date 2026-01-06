@@ -36,6 +36,9 @@ class UserSettings(BaseModel):
     # TTS Provider: "piper" (fast), "kokoro" (high quality), "chatterbox" (SoTA + cloning)
     tts_provider: Literal["piper", "kokoro", "chatterbox"] = "kokoro"
     
+    # STT Provider: "whisper" (stable, batch) or "parakeet" (fast, streaming)
+    stt_provider: Literal["whisper", "parakeet"] = "whisper"
+    
     # Voice tuning for more natural/expressive speech (Piper-specific)
     voice_speed: float = 1.0  # length_scale: 0.5-2.0 (lower=faster, higher=slower)
     voice_variation: float = 0.8  # noise_scale: 0-1 (higher=more expressive)

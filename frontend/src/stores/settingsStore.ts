@@ -27,6 +27,9 @@ export interface UserSettings {
   user_location: string
   // TTS Provider: "piper" (fast), "kokoro" (high quality), "chatterbox" (SoTA + cloning)
   tts_provider: 'piper' | 'kokoro' | 'chatterbox'
+  
+  // STT Provider: "whisper" (stable) or "parakeet" (fast, NVIDIA)
+  stt_provider: 'whisper' | 'parakeet'
   // Voice tuning for more natural speech (Piper-specific)
   voice_speed: number      // 0.5-2.0 (1.0 = normal)
   voice_variation: number  // 0-1 (higher = more expressive)
@@ -84,6 +87,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     language: 'en',
     user_location: '',  // e.g., "Redlands, California"
     tts_provider: 'kokoro',  // Default to high-quality Kokoro
+    stt_provider: 'whisper',  // Default to stable Whisper
     // Voice tuning (Piper-specific)
     voice_speed: 1.0,
     voice_variation: 0.8,

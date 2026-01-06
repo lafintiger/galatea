@@ -75,3 +75,11 @@ export const TTSProvider = {
 } as const
 
 export type TTSProviderValue = (typeof TTSProvider)[keyof typeof TTSProvider]
+
+// STT Providers
+export const STTProvider = {
+  WHISPER: 'whisper',
+  PARAKEET: 'parakeet',
+} as const
+
+export type STTProviderValue = (typeof STTProvider)[keyof typeof STTProvider]

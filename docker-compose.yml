@@ -15,6 +15,9 @@
 # WITH CHATTERBOX (SoTA TTS + Voice Cloning):
 #   docker compose --profile chatterbox up
 #
+# WITH PARAKEET (Fast NVIDIA STT):
+#   docker compose --profile parakeet up
+#
 # FULL STACK + VISION:
 #   docker compose --profile full --profile vision up
 #
@@ -50,6 +53,8 @@ services:
       - PIPER_PORT=10200
       - KOKORO_BASE_URL=http://kokoro:8880
       - CHATTERBOX_BASE_URL=http://chatterbox:8881
+      - PARAKEET_BASE_URL=http://parakeet:50052
+      - STT_PROVIDER=${STT_PROVIDER:-whisper}
       # Search - defaults to host machine (for external Perplexica/SearXNG)
       - SEARXNG_HOST=${SEARXNG_HOST:-host.docker.internal}
       - SEARXNG_PORT=${SEARXNG_PORT:-4000}
@@ -97,6 +102,29 @@ services:
     restart: unless-stopped
     networks:
       - galatea-network
+
+  # Parakeet - NVIDIA low-latency STT (optional, requires GPU)
+  parakeet:
+    build: ./docker/parakeet
+    container_name: galatea-parakeet
+    profiles: ["parakeet", "nvidia-speech"]
+    ports:
+      - "50052:50052"
+    environment:
+      - PARAKEET_MODEL=nvidia/parakeet-ctc-1.1b
+    volumes:
+      - parakeet-models:/app/models
+    restart: unless-stopped
+    networks:
+      - galatea-network
+    # GPU support - recommended for Parakeet
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   piper:
     image: rhasspy/wyoming-piper:latest
@@ -295,6 +323,8 @@ volumes:
     name: galatea-chatterbox-voices
   chatterbox-models:
     name: galatea-chatterbox-models
+  parakeet-models:
+    name: galatea-parakeet-models
 
 # ============================================
 # NETWORK
